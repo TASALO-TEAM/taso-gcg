@@ -1,0 +1,12 @@
+python-telegram-bot==22.8
+aiosqlite
+APScheduler
+python-dotenv
+feedparser
+beautifulsoup4
+lxml
+brotli
+curl_cffi
+psutil
+pytest
+pytest-asyncio

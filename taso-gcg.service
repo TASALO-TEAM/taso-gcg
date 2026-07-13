@@ -1,0 +1,19 @@
+[Unit]
+Description=taso-gcg - Gestion de Canales y Grupos TASALO
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=tasalo
+WorkingDirectory=/home/tasalo/taso-gcg
+EnvironmentFile=/home/tasalo/taso-gcg/.env
+ExecStart=/home/tasalo/taso-gcg/venv/bin/python bot.py
+Restart=on-failure
+RestartSec=10
+MemoryMax=256M
+
+# Ajusta 'tasalo' por el usuario real del VPS y la ruta si difiere.
+
+[Install]
+WantedBy=multi-user.target
