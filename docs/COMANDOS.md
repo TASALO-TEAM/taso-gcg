@@ -2,6 +2,12 @@
 
 Convención: 🔒 = requiere ser admin del chat · 👑 = solo SUDO_USERS (equipo TASALO) · sin marca = cualquiera.
 
+## Inicio (`start.py`)
+| Comando | Descripción |
+|---|---|
+| `/start` | En privado: presentación del bot. En grupo: confirma que está activo |
+| `/help` | Menú de ayuda por temas (con botones). `/help <tema>` va directo a un tema |
+
 ## Administración (`admin.py`)
 | Comando | Descripción |
 |---|---|

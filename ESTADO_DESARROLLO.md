@@ -148,6 +148,13 @@ cubierto por `test_ensure_chat_actualiza_titulo_si_cambia`.
 4. Command `/help` todavía no existe como tal — no se portó el patrón
    `HELP_TOPICS`/`TOPIC_ALIASES` de taso-bot. Cada módulo responde con su propio
    mensaje de uso cuando faltan argumentos, pero no hay un `/help` centralizado.
+
+   **[RESUELTO]** — Ersus reportó que `/start` no hacía nada (cierto: nunca se
+   implementó, con 21 módulos de funcionalidad se pasó por alto el más básico de
+   todos). Se añadió `modules/start.py` con `/start` (bienvenida distinta en PM
+   vs grupo) y `/help` completo con el patrón `HELP_TOPICS`/`TOPIC_ALIASES` igual
+   que taso-bot — resumen con botones inline + `/help <tema>` directo. Ahora son
+   22 módulos, 93 handlers. Tests siguen en 23/23.
 5. Del catálogo de MissRose que se dejó fuera a propósito (ver más abajo): AntiRaid,
    captcha con imagen/matemática, exportar/importar configuración, topics/foros.
 6. `taso-gcg.service` no se ha probado en el VPS real — es una plantilla basada en el
