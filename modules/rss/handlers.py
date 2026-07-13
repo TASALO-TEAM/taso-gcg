@@ -34,11 +34,11 @@ _monitor: RSSMonitor | None = None
 
 async def _resolver_chat_destino(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Devuelve el chat_row (fila de la tabla chats) donde debe operar el comando:
-    el chat actual si es grupo, o el chat conectado si estamos en PM."""
+    el chat actual si es grupo, o el chat conectado (persistido en DB) si estamos en PM."""
     chat = update.effective_chat
     if chat.type in ("group", "supergroup", "channel"):
         return await db.ensure_chat(chat)
-    tg_chat_id = get_connected_chat_id(context)
+    tg_chat_id = await get_connected_chat_id(update.effective_user.id)
     if not tg_chat_id:
         return None
     return await db.fetchone("SELECT * FROM chats WHERE tg_chat_id = ?", (tg_chat_id,))

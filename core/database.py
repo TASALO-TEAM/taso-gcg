@@ -191,6 +191,14 @@ CREATE TABLE IF NOT EXISTS iv_templates (
     dominio TEXT PRIMARY KEY,   -- '_universal' para el rhash por defecto
     rhash TEXT NOT NULL
 );
+
+-- === Conexión remota (/connect): persistida en DB, no en memoria, para que
+-- sobreviva a un reinicio del bot igual que todo lo demás ===
+CREATE TABLE IF NOT EXISTS connections (
+    user_id INTEGER PRIMARY KEY,
+    tg_chat_id INTEGER NOT NULL,
+    conectado_en TEXT DEFAULT (datetime('now'))
+);
 """
 
 
@@ -357,6 +365,22 @@ class Database:
                 return t["rhash"]
         universal = await self.fetchone("SELECT rhash FROM iv_templates WHERE dominio = '_universal'")
         return universal["rhash"] if universal else None
+
+    # --- Conexión remota (/connect) ---
+    async def set_connection(self, user_id: int, tg_chat_id: int):
+        await self.execute(
+            "INSERT INTO connections(user_id, tg_chat_id) VALUES (?,?) "
+            "ON CONFLICT(user_id) DO UPDATE SET tg_chat_id = excluded.tg_chat_id, "
+            "conectado_en = datetime('now')",
+            (user_id, tg_chat_id),
+        )
+
+    async def get_connection(self, user_id: int) -> int | None:
+        row = await self.fetchone("SELECT tg_chat_id FROM connections WHERE user_id = ?", (user_id,))
+        return row["tg_chat_id"] if row else None
+
+    async def clear_connection(self, user_id: int):
+        await self.execute("DELETE FROM connections WHERE user_id = ?", (user_id,))
 
 
 db = Database()

@@ -130,7 +130,7 @@ Convención: 🔒 = requiere ser admin del chat · 👑 = solo SUDO_USERS (equip
 ## Conexiones (`connection.py`)
 | Comando | Descripción |
 |---|---|
-| `/connect <id_chat>` (en PM) | Gestiona un chat desde el privado sin escribir ahí (requiere ser admin de ese chat) |
+| `/connect <@usuario \| id_chat>` (en PM) | Gestiona un chat sin escribir ahí (requiere ser admin de ese chat). Acepta @usuario si el canal/grupo es público, o el ID si es privado |
 | `/connection` | Ver info del chat conectado |
 | `/disconnect` | Cierra la conexión |
 

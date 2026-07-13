@@ -130,3 +130,27 @@ async def test_iv_templates_jerarquia(test_db):
     assert await test_db.find_iv_rhash("https://tecnologia.elpais.com/nota") == "ep456"
     # Dominio sin plantilla propia -> universal
     assert await test_db.find_iv_rhash("https://otrositio.com/nota") == "univ123"
+
+
+@pytest.mark.asyncio
+async def test_connection_persiste_y_sobrevive_reinicio_simulado(test_db):
+    # "Reinicio simulado" = no depender de ningún estado en memoria (user_data),
+    # solo de lo que devuelve una consulta fresca a la DB.
+    assert await test_db.get_connection(555) is None
+
+    await test_db.set_connection(555, -100999)
+    assert await test_db.get_connection(555) == -100999
+
+
+@pytest.mark.asyncio
+async def test_connection_se_puede_reemplazar(test_db):
+    await test_db.set_connection(555, -100111)
+    await test_db.set_connection(555, -100222)  # el usuario se conecta a otro chat
+    assert await test_db.get_connection(555) == -100222
+
+
+@pytest.mark.asyncio
+async def test_connection_clear(test_db):
+    await test_db.set_connection(555, -100333)
+    await test_db.clear_connection(555)
+    assert await test_db.get_connection(555) is None

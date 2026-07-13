@@ -11,6 +11,7 @@ from telegram.ext import Application, ApplicationBuilder, ContextTypes
 from core.config import TOKEN, BOT_VERSION, LOG_CHAT_ID
 from core.database import db
 from core.loader import load_all
+from core.commands_menu import registrar_comandos
 from utils.logger import log
 
 # Bajamos el ruido de librerías de terceros; nuestro propio logger ya cubre lo importante
@@ -23,6 +24,12 @@ async def post_init(application: Application):
     await db.init()
     cargados = load_all(application)
     log(f"🚀 taso-gcg v{BOT_VERSION} arrancando con {len(cargados)} módulos")
+
+    try:
+        await registrar_comandos(application.bot)
+        log("📋 Menú de comandos registrado ante Telegram (setMyCommands)")
+    except Exception as e:
+        log(f"No se pudo registrar el menú de comandos: {e}", "warning")
 
     if LOG_CHAT_ID:
         try:

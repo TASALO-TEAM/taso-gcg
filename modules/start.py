@@ -63,7 +63,7 @@ HELP_TOPICS = {
                   "/disabledel on|off /disableadmin on|off"),
     "join": ("🚪 Solicitudes de ingreso", "/joincaptcha on|off — exige botón de confirmación"),
     "connection": ("🔗 Conexión remota",
-                   "/connect <id_chat> (en PM) — gestiona un chat sin escribir ahí\n"
+                   "/connect <@usuario|id_chat> (en PM) — gestiona un chat sin escribir ahí\n"
                    "/connection /disconnect"),
     "broadcast": ("📣 Difusión TASALO",
                   "/broadcast <texto> (o respondiendo) — a todos los chats oficiales\n"

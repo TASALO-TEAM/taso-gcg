@@ -143,8 +143,9 @@ cubierto por `test_ensure_chat_actualiza_titulo_si_cambia`.
 2. Ampliar la suite de tests más allá de database/common/decorators — faltan tests de
    integración de los módulos de moderación en sí (warns.py, antiflood.py, etc.), que
    requieren mockear más profundamente la API de Telegram.
-3. Aplicar los **command scopes** vía BotFather (`/setcommands` con scope de admin vs
-   default) — es un paso manual de configuración, no de código.
+3. ~~Aplicar los **command scopes** vía BotFather~~ — **[RESUELTO]**, ver punto 7 más
+   abajo: se automatizó por completo con `setMyCommands` + scopes, no hacía falta
+   tocar BotFather a mano como se pensó originalmente.
 4. Command `/help` todavía no existe como tal — no se portó el patrón
    `HELP_TOPICS`/`TOPIC_ALIASES` de taso-bot. Cada módulo responde con su propio
    mensaje de uso cuando faltan argumentos, pero no hay un `/help` centralizado.
@@ -155,6 +156,36 @@ cubierto por `test_ensure_chat_actualiza_titulo_si_cambia`.
    vs grupo) y `/help` completo con el patrón `HELP_TOPICS`/`TOPIC_ALIASES` igual
    que taso-bot — resumen con botones inline + `/help <tema>` directo. Ahora son
    22 módulos, 93 handlers. Tests siguen en 23/23.
+
+7. **[RESUELTO]** Ersus reportó "el comando /help no funciona" ya con `/start`
+   arreglado. `help_cmd` en sí funcionaba perfecto en aislamiento (se probó
+   directamente con un update simulado, cero excepciones). La causa real: **nunca
+   se llamó a `setMyCommands`**, así que ningún comando aparecía en el menú "/"
+   del cliente de Telegram — se podían escribir a mano y funcionaban, pero no
+   había autocompletado, que es lo primero que la gente prueba. Se añadió
+   `core/commands_menu.py` con dos listas (`COMANDOS_PUBLICOS` / `COMANDOS_ADMIN`)
+   y `registrar_comandos(bot)`, llamado desde `post_init` en `bot.py`. Usa
+   `BotCommandScopeDefault` + `BotCommandScopeAllChatAdministrators` — esto es,
+   de hecho, la implementación real de los "command scopes" que el plan original
+   había documentado por error como "paso manual en BotFather"; sí se puede
+   automatizar por completo desde la API, como quedó demostrado aquí.
+   Verificado con `set_my_commands` real (mock) → 2 llamadas, 9 comandos en
+   default y 30 en el scope de admins, todos dentro de los límites de Telegram
+   (32 car. nombre / 256 car. descripción / 100 comandos por scope).
+
+8. **[RESUELTO]** Ersus reportó que al reiniciar el bot "pierde de manera visual"
+   los canales conectados (los feeds RSS seguían funcionando bien, pero
+   `/connection` se comportaba como si nunca te hubieras conectado). Causa: la
+   conexión se guardaba en `context.user_data`, que vive solo en memoria y PTB
+   la borra por completo en cada reinicio del proceso — nunca se configuró
+   ninguna capa de persistencia para eso. Se movió a SQLite (tabla `connections`,
+   `user_id` -> `tg_chat_id`), consistente con el resto del proyecto (un solo
+   punto de persistencia, nada de introducir `PicklePersistence` como capa
+   aparte). De paso, se aprovechó para resolver el segundo pedido: `/connect`
+   ahora acepta `@usuario` del canal/grupo además del ID numérico (solo hace
+   falta el ID si el chat es privado sin username público). Se añadieron 3 tests
+   nuevos de la persistencia (incluyendo uno que simula explícitamente el
+   "reinicio" al no depender de nada en memoria). Total: 26 tests pasando.
 5. Del catálogo de MissRose que se dejó fuera a propósito (ver más abajo): AntiRaid,
    captcha con imagen/matemática, exportar/importar configuración, topics/foros.
 6. `taso-gcg.service` no se ha probado en el VPS real — es una plantilla basada en el
