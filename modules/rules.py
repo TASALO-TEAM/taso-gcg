@@ -1,9 +1,12 @@
 """Módulo rules — reglas fijadas del grupo."""
 
+import html
+
 from telegram import Update
 from telegram.ext import Application, CommandHandler, ContextTypes
 
 from core.database import db
+from utils.common import raw_text_after_command
 from utils.decorators import user_admin, group_only
 
 __mod_name__ = "Reglas"
@@ -16,7 +19,7 @@ async def rules_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not settings["rules_text"]:
         await update.effective_message.reply_text("Este grupo todavía no tiene reglas configuradas.")
         return
-    await update.effective_message.reply_text(f"📜 <b>Reglas del grupo:</b>\n\n{settings['rules_text']}",
+    await update.effective_message.reply_text(f"📜 <b>Reglas del grupo:</b>\n\n{html.escape(settings['rules_text'])}",
                                                parse_mode="HTML")
 
 
@@ -26,7 +29,7 @@ async def setrules_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not context.args:
         await update.effective_message.reply_text("Uso: /setrules <texto de las reglas>")
         return
-    texto = " ".join(context.args)
+    texto = raw_text_after_command(update)
     chat_row = await db.ensure_chat(update.effective_chat)
     await db.update_chat_settings(chat_row["id"], rules_text=texto)
     await update.effective_message.reply_text("✅ Reglas actualizadas.")

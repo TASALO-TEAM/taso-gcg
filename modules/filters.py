@@ -5,6 +5,7 @@ from telegram import Update
 from telegram.ext import Application, CommandHandler, MessageHandler, filters as tg_filters, ContextTypes
 
 from core.database import db
+from utils.common import raw_text_after_command
 from utils.decorators import user_admin, group_only
 
 __mod_name__ = "Filtros"
@@ -35,7 +36,7 @@ async def filter_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.effective_message.reply_text("Uso: /filter <palabra clave> <respuesta>")
         return
     disparador = context.args[0].lower()
-    respuesta = " ".join(context.args[1:])
+    respuesta = raw_text_after_command(update, skip_tokens=1)
     chat_row = await db.ensure_chat(update.effective_chat)
     await db.execute(
         "INSERT INTO filters(chat_id, disparador, respuesta) VALUES (?,?,?) "

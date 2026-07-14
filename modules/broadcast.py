@@ -12,6 +12,7 @@ from telegram.constants import ParseMode
 from telegram.ext import Application, CommandHandler, ContextTypes
 
 from core.database import db
+from utils.common import raw_text_after_command
 from utils.decorators import sudo_only
 
 __mod_name__ = "Difusión"
@@ -26,7 +27,7 @@ async def broadcast_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
         return
 
-    texto = " ".join(context.args) if context.args else None
+    texto = raw_text_after_command(update) if context.args else None
     origen = message.reply_to_message
 
     chats = await db.chats_oficiales()

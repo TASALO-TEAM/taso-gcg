@@ -1,12 +1,14 @@
 """Módulo warns — avisos acumulables con acción automática al llegar al límite."""
 
+import html
+
 from telegram import Update
 from telegram.constants import ParseMode
 from telegram.ext import Application, CommandHandler, ContextTypes
 
 from core.database import db
 from utils.decorators import user_admin, bot_admin, group_only
-from utils.common import extract_target_user
+from utils.common import extract_target_user, raw_text_after_command
 
 __mod_name__ = "Avisos"
 
@@ -20,7 +22,7 @@ async def warn_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.effective_message.reply_text("Responde al mensaje de quien quieres avisar.")
         return
 
-    razon = " ".join(context.args) if context.args else None
+    razon = raw_text_after_command(update) if context.args else None
     chat_row = await db.ensure_chat(chat)
     dado_por = update.effective_user.id
 
@@ -79,9 +81,9 @@ async def warns_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not filas:
         await update.effective_message.reply_text(f"{nombre} no tiene avisos.")
         return
-    lineas = [f"{i+1}. {f['razon'] or 'sin motivo'} ({f['creado_en']})" for i, f in enumerate(filas)]
+    lineas = [f"{i+1}. {html.escape(f['razon'] or 'sin motivo')} ({f['creado_en']})" for i, f in enumerate(filas)]
     await update.effective_message.reply_text(
-        f"<b>Avisos de {nombre}:</b>\n" + "\n".join(lineas), parse_mode=ParseMode.HTML
+        f"<b>Avisos de {html.escape(nombre)}:</b>\n" + "\n".join(lineas), parse_mode=ParseMode.HTML
     )
 
 

@@ -11,6 +11,7 @@ de federación por separado.
 """
 
 import asyncio
+import html
 
 from telegram import Update
 from telegram.constants import ParseMode
@@ -18,7 +19,7 @@ from telegram.ext import Application, CommandHandler, ContextTypes
 
 from core.database import db
 from utils.decorators import user_admin, sudo_only, group_only
-from utils.common import extract_target_user
+from utils.common import extract_target_user, raw_text_after_command
 
 __mod_name__ = "Federación TASALO"
 
@@ -31,7 +32,7 @@ async def fban_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not user_id:
         await update.effective_message.reply_text("Responde al mensaje de quien quieres banear de la federación.")
         return
-    razon = " ".join(context.args) if context.args else None
+    razon = raw_text_after_command(update) if context.args else None
 
     await db.execute(
         "INSERT INTO fed_bans(user_id, razon, baneado_por) VALUES (?,?,?) "
@@ -86,7 +87,7 @@ async def fbanlist_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not filas:
         await update.effective_message.reply_text("No hay bans en la federación TASALO.")
         return
-    lineas = [f"• <code>{f['user_id']}</code> — {f['razon'] or 'sin motivo'}" for f in filas]
+    lineas = [f"• <code>{f['user_id']}</code> — {html.escape(f['razon'] or 'sin motivo')}" for f in filas]
     await update.effective_message.reply_text(
         "🌐 <b>Federación TASALO — baneados:</b>\n" + "\n".join(lineas), parse_mode=ParseMode.HTML
     )

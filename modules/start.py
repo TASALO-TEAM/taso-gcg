@@ -5,6 +5,8 @@ centralizado. Sigue la convención HELP_TOPICS/TOPIC_ALIASES que ya usas en
 taso-bot: resumen compacto con botones + página de detalle por tema.
 """
 
+import html
+
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
 from telegram.constants import ParseMode
 from telegram.ext import Application, CommandHandler, CallbackQueryHandler, ContextTypes
@@ -144,7 +146,8 @@ async def help_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
         clave = TOPIC_ALIASES.get(clave, clave)
         if clave in HELP_TOPICS:
             titulo, texto = HELP_TOPICS[clave]
-            await update.effective_message.reply_text(f"<b>{titulo}</b>\n\n{texto}", parse_mode=ParseMode.HTML)
+            texto_html = html.escape(texto)
+            await update.effective_message.reply_text(f"<b>{titulo}</b>\n\n{texto_html}", parse_mode=ParseMode.HTML)
             return
         await update.effective_message.reply_text(
             f"No conozco el tema «{context.args[0]}». Usa /help sin argumentos para ver la lista."
@@ -170,8 +173,9 @@ async def _on_help_button(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if clave not in HELP_TOPICS:
         return
     titulo, texto = HELP_TOPICS[clave]
+    texto_html = html.escape(texto)
     teclado = InlineKeyboardMarkup([[InlineKeyboardButton("⬅️ Volver", callback_data=f"{CB_PREFIX}volver")]])
-    await query.edit_message_text(f"<b>{titulo}</b>\n\n{texto}", parse_mode=ParseMode.HTML, reply_markup=teclado)
+    await query.edit_message_text(f"<b>{titulo}</b>\n\n{texto_html}", parse_mode=ParseMode.HTML, reply_markup=teclado)
 
 
 def register(application: Application, sudo_users):

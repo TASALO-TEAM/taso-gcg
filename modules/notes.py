@@ -6,6 +6,7 @@ from telegram import Update
 from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes
 
 from core.database import db
+from utils.common import raw_text_after_command
 from utils.decorators import user_admin, group_only
 
 __mod_name__ = "Notas"
@@ -24,7 +25,7 @@ async def save_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if message.reply_to_message:
         contenido = message.reply_to_message.text or message.reply_to_message.caption or ""
     else:
-        contenido = " ".join(context.args[1:])
+        contenido = raw_text_after_command(update, skip_tokens=1)
     if not contenido:
         await update.effective_message.reply_text("No encontré contenido para guardar.")
         return

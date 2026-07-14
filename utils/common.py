@@ -47,6 +47,28 @@ def humanize_seconds(segundos: int) -> str:
     return f"{segundos}s"
 
 
+def raw_text_after_command(update, skip_tokens: int = 0) -> str:
+    """Devuelve el texto tal cual lo escribió el usuario después del comando
+    (y, opcionalmente, de los primeros `skip_tokens` argumentos), preservando
+    saltos de línea y espacios múltiples.
+
+    A diferencia de " ".join(context.args), que reconstruye el texto separando
+    cada palabra con un solo espacio y destruye cualquier formato (saltos de
+    línea, sangría, espacios dobles), esto solo recorta los tokens iniciales
+    que ya se consumieron (comando, nombre, disparador, etc.) y deja el resto
+    intacto — igual que hace el reply_to_message en /save.
+    """
+    message = update.effective_message
+    texto = message.text or message.caption or ""
+    if texto.startswith("/"):
+        partes = texto.split(maxsplit=1)
+        texto = partes[1] if len(partes) > 1 else ""
+    for _ in range(skip_tokens):
+        partes = texto.split(maxsplit=1)
+        texto = partes[1] if len(partes) > 1 else ""
+    return texto
+
+
 def extract_target_user(update):
     """Determina sobre qué usuario aplica un comando de moderación:
     respondiendo a un mensaje > @mención en argumentos > None.
