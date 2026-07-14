@@ -114,7 +114,7 @@ def _texto_resumen() -> str:
     return (
         "🤖 <b>taso-gcg</b> — Gestión de Canales y Grupos TASALO\n\n"
         "Toca un tema para ver sus comandos, o escribe <code>/help &lt;tema&gt;</code> directo.\n"
-        "Lista completa siempre disponible en docs/COMANDOS.md del proyecto."
+        "Esta lista cubre el 100% de los comandos del bot — no hace falta buscar en otro lado."
     )
 
 
