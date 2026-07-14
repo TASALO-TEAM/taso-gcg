@@ -7,7 +7,7 @@ from telegram.constants import ParseMode
 from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes
 
 from core.database import db
-from utils.common import raw_text_after_command
+from utils.common import formatted_text_after_command
 from utils.decorators import user_admin, group_only
 
 __mod_name__ = "Bienvenida"
@@ -17,10 +17,9 @@ DEFAULT_GOODBYE = "👋 {mencion} salió del grupo."
 
 
 def _reemplazar(texto: str, user, chat) -> str:
-    # Se escapa primero el texto del admin (puede traer < > & sueltos) y recién
-    # después se insertan los placeholders con HTML real, para no romper el
-    # parse_mode="HTML" ni escapar la mención generada.
-    texto = html.escape(texto)
+    # texto ya viene HTML-safe (formatted_text_after_command escapa el texto
+    # literal y solo deja como tags las negritas/cursivas/etc. reales), así
+    # que solo insertamos los placeholders con su propio HTML ya escapado.
     return (
         texto.replace("{mencion}", user.mention_html())
         .replace("{nombre}", html.escape(user.full_name))
@@ -64,7 +63,7 @@ async def setwelcome_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
             "Uso: /setwelcome <texto>\nPlaceholders: {mencion} {nombre} {chat}"
         )
         return
-    texto = raw_text_after_command(update)
+    texto = formatted_text_after_command(update)
     chat_row = await db.ensure_chat(update.effective_chat)
     await db.update_chat_settings(chat_row["id"], welcome_enabled=1, welcome_text=texto)
     await update.effective_message.reply_text("✅ Mensaje de bienvenida configurado.")
@@ -78,7 +77,7 @@ async def setgoodbye_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
             "Uso: /setgoodbye <texto>\nPlaceholders: {mencion} {nombre} {chat}"
         )
         return
-    texto = raw_text_after_command(update)
+    texto = formatted_text_after_command(update)
     chat_row = await db.ensure_chat(update.effective_chat)
     await db.update_chat_settings(chat_row["id"], goodbye_enabled=1, goodbye_text=texto)
     await update.effective_message.reply_text("✅ Mensaje de despedida configurado.")

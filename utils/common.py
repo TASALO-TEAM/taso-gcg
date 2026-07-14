@@ -47,6 +47,37 @@ def humanize_seconds(segundos: int) -> str:
     return f"{segundos}s"
 
 
+def formatted_text_after_command(update, skip_tokens: int = 0) -> str:
+    """Como raw_text_after_command, pero además reconoce negritas, cursivas,
+    subrayado, tachado, spoiler, código y links que el usuario haya aplicado
+    con el formato nativo de Telegram (toolbar del cliente), y los devuelve ya
+    convertidos a las mismas etiquetas HTML que usamos al reenviar con
+    parse_mode="HTML" — así el admin no tiene que escribir HTML a mano ni
+    perder el formato al guardar el texto.
+
+    El resultado ya viene HTML-safe (texto literal escapado, solo las
+    entidades reales quedan como tags): no volver a pasarlo por html.escape().
+    """
+    message = update.effective_message
+    texto_html = message.text_html or message.caption_html or ""
+    if not texto_html:
+        return ""
+    resto = texto_html
+    for _ in range(skip_tokens + 1):
+        partes = resto.split(maxsplit=1)
+        resto = partes[1] if len(partes) > 1 else ""
+    return resto
+
+
+def formatted_text_of_message(message) -> str:
+    """HTML (con negritas/cursivas/etc. ya convertidas) del texto o caption de
+    un mensaje puntual — para cuando se guarda el contenido de un mensaje al
+    que se está respondiendo (ej. /save)."""
+    if not message:
+        return ""
+    return message.text_html or message.caption_html or ""
+
+
 def raw_text_after_command(update, skip_tokens: int = 0) -> str:
     """Devuelve el texto tal cual lo escribió el usuario después del comando
     (y, opcionalmente, de los primeros `skip_tokens` argumentos), preservando

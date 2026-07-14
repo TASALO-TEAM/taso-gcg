@@ -3,10 +3,11 @@
 import re
 
 from telegram import Update
+from telegram.constants import ParseMode
 from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes
 
 from core.database import db
-from utils.common import raw_text_after_command
+from utils.common import formatted_text_after_command, formatted_text_of_message
 from utils.decorators import user_admin, group_only
 
 __mod_name__ = "Notas"
@@ -23,9 +24,9 @@ async def save_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     nombre = context.args[0].lower()
     message = update.effective_message
     if message.reply_to_message:
-        contenido = message.reply_to_message.text or message.reply_to_message.caption or ""
+        contenido = formatted_text_of_message(message.reply_to_message)
     else:
-        contenido = raw_text_after_command(update, skip_tokens=1)
+        contenido = formatted_text_after_command(update, skip_tokens=1)
     if not contenido:
         await update.effective_message.reply_text("No encontré contenido para guardar.")
         return
@@ -75,7 +76,7 @@ async def _responder_nota(update: Update, nombre: str):
         "SELECT contenido FROM notes WHERE chat_id = ? AND nombre = ?", (chat_row["id"], nombre)
     )
     if fila:
-        await update.effective_message.reply_text(fila["contenido"])
+        await update.effective_message.reply_text(fila["contenido"], parse_mode=ParseMode.HTML)
 
 
 async def _detectar_hashtag(update: Update, context: ContextTypes.DEFAULT_TYPE):

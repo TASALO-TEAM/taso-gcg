@@ -2,10 +2,11 @@
 ej. "cómo uso el bot de tasas" -> respuesta guardada)."""
 
 from telegram import Update
+from telegram.constants import ParseMode
 from telegram.ext import Application, CommandHandler, MessageHandler, filters as tg_filters, ContextTypes
 
 from core.database import db
-from utils.common import raw_text_after_command
+from utils.common import formatted_text_after_command
 from utils.decorators import user_admin, group_only
 
 __mod_name__ = "Filtros"
@@ -24,7 +25,7 @@ async def _check_filters(update: Update, context: ContextTypes.DEFAULT_TYPE):
     texto = message.text.lower()
     for f in disparadores:
         if f["disparador"].lower() in texto:
-            await message.reply_text(f["respuesta"])
+            await message.reply_text(f["respuesta"], parse_mode=ParseMode.HTML)
             return
 
 
@@ -36,7 +37,7 @@ async def filter_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.effective_message.reply_text("Uso: /filter <palabra clave> <respuesta>")
         return
     disparador = context.args[0].lower()
-    respuesta = raw_text_after_command(update, skip_tokens=1)
+    respuesta = formatted_text_after_command(update, skip_tokens=1)
     chat_row = await db.ensure_chat(update.effective_chat)
     await db.execute(
         "INSERT INTO filters(chat_id, disparador, respuesta) VALUES (?,?,?) "
