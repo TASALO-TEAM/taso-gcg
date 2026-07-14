@@ -66,7 +66,8 @@ class RSSMonitor:
 
             # --- Auto-reparación: si Nitter cae o hay bloqueo WAF, rotar instancia ---
             is_nitter = "nitter" in feed["url"]
-            needs_repair = bool(error) and (is_nitter or "403" in str(error) or "429" in str(error))
+            is_waf_block = any(k in str(error) for k in ("403", "429", "Cloudflare"))
+            needs_repair = bool(error) and (is_nitter or is_waf_block)
 
             if needs_repair:
                 err_type = "Instancia Caída" if is_nitter else "WAF Bloqueo"

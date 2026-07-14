@@ -60,11 +60,21 @@ class RSSResolver:
             try:
                 soup = BeautifulSoup(content, "lxml")
                 links = soup.find_all("link", rel=["alternate", "service.feed"])
+                comment_candidates = []
                 for link in links:
                     t = link.get("type", "").lower()
                     href = link.get("href")
+                    title = (link.get("title") or "").lower()
                     if href and ("rss" in t or "atom" in t or "xml" in t):
-                        candidates.append(urljoin(url, href))
+                        full_href = urljoin(url, href)
+                        # WordPress siempre agrega, además del feed principal, un feed de
+                        # comentarios del sitio (también XML válido con entradas). Si no
+                        # lo separamos, puede "ganarle" al feed real por pura suerte de orden.
+                        if "comment" in href.lower() or "coment" in title or "comment" in title:
+                            comment_candidates.append(full_href)
+                        else:
+                            candidates.append(full_href)
+                candidates.extend(comment_candidates)  # comentarios: solo como último recurso
                 if not candidates:
                     for a in soup.find_all("a", href=True):
                         href = a.get("href")
@@ -83,7 +93,7 @@ class RSSResolver:
             for path in cls.COMMON_PATHS:
                 candidates.append(urljoin(base + "/", path))
 
-        unique_candidates = list(set(candidates))
+        unique_candidates = list(dict.fromkeys(candidates))  # dedup preservando orden (set() lo rompía)
         await asyncio.sleep(2)
 
         for cand in unique_candidates[:6]:
