@@ -178,6 +178,19 @@ async def setstyle_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.effective_message.reply_text(f"✅ Estilo del feed #{feed_id}: {context.args[1]}")
 
 
+async def settranslate_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if len(context.args or []) < 2 or context.args[0].isdigit() is False or context.args[1] not in ("on", "off"):
+        await update.effective_message.reply_text(
+            "Uso: /settranslate <id_feed> <on|off>\n"
+            "Traduce título y descripción con IA antes de publicar (requiere GROQ_API_KEY)."
+        )
+        return
+    feed_id, valor = int(context.args[0]), 1 if context.args[1] == "on" else 0
+    await db.execute("UPDATE feeds SET traducir = ? WHERE id = ?", (valor, feed_id))
+    estado = "activada ✅" if valor else "desactivada"
+    await update.effective_message.reply_text(f"Traducción del feed #{feed_id}: {estado}")
+
+
 async def setrhash_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if len(context.args or []) < 2 or not context.args[0].isdigit():
         await update.effective_message.reply_text(
@@ -225,6 +238,7 @@ def register(application: Application, sudo_users):
     application.add_handler(CommandHandler("myfeeds", myfeeds_cmd))
     application.add_handler(CommandHandler("setinterval", user_admin(setinterval_cmd)))
     application.add_handler(CommandHandler("setstyle", user_admin(setstyle_cmd)))
+    application.add_handler(CommandHandler("settranslate", user_admin(settranslate_cmd)))
     application.add_handler(CommandHandler("setrhash", user_admin(setrhash_cmd)))
     application.add_handler(CommandHandler("rmfeed", user_admin(rmfeed_cmd)))
     application.add_handler(CommandHandler("testfeed", user_admin(testfeed_cmd)))

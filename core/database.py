@@ -169,6 +169,7 @@ CREATE TABLE IF NOT EXISTS feeds (
     intervalo_min INTEGER NOT NULL DEFAULT 10,
     ultimo_check REAL NOT NULL DEFAULT 0,
     activo INTEGER NOT NULL DEFAULT 1,
+    traducir INTEGER NOT NULL DEFAULT 0,
     creado_en TEXT DEFAULT (datetime('now'))
 );
 CREATE INDEX IF NOT EXISTS idx_feeds_activo ON feeds(activo);
@@ -219,8 +220,29 @@ class Database:
         self._conn.row_factory = aiosqlite.Row
         await self._conn.executescript(SCHEMA_SQL)
         await self._conn.commit()
+        await self._migrate()
         await self._set_schema_version()
         log(f"Base de datos lista en {self.path} (WAL)")
+
+    async def _migrate(self):
+        """Agrega columnas nuevas a tablas que ya existían antes de que se
+        introdujeran (CREATE TABLE IF NOT EXISTS no toca tablas existentes).
+        Cada entrada se salta sola si la columna ya está — así esto es seguro
+        de correr en cada arranque, tanto en una DB nueva como en la del VPS."""
+        migraciones = [
+            ("feeds", "traducir", "INTEGER NOT NULL DEFAULT 0"),
+        ]
+        cur = await self._conn.execute("PRAGMA table_info(feeds)")
+        columnas_existentes = {row[1] for row in await cur.fetchall()}
+        for tabla, columna, tipo in migraciones:
+            if tabla == "feeds" and columna in columnas_existentes:
+                continue
+            try:
+                await self._conn.execute(f"ALTER TABLE {tabla} ADD COLUMN {columna} {tipo}")
+                log(f"🔧 Migración: agregada columna {tabla}.{columna}")
+            except aiosqlite.OperationalError:
+                pass  # ya existía (carrera improbable, pero por si acaso)
+        await self._conn.commit()
 
     async def _set_schema_version(self):
         await self._conn.execute(

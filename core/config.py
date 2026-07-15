@@ -31,6 +31,13 @@ SUDO_USERS: set[int] = _parse_id_list(os.getenv("SUDO_USERS"))
 # Chat/canal donde el bot manda logs de arranque, errores críticos, etc.
 LOG_CHAT_ID = os.getenv("LOG_CHAT_ID")
 
+# --- IA (Groq) — traducción de RSS y contexto de moderación ---
+# Opcional: si no se configura, las funciones de IA se desactivan solas
+# (se publica el RSS en el idioma original, no hay contexto de moderación),
+# el resto del bot sigue funcionando exactamente igual.
+GROQ_API_KEY = os.getenv("GROQ_API_KEY")
+GROQ_MODEL = os.getenv("GROQ_MODEL", "openai/gpt-oss-120b")
+
 # --- Rutas ---
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DATA_DIR = os.path.join(BASE_DIR, "data")

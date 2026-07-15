@@ -16,6 +16,7 @@ from core.database import db
 from modules.rss.parser import RSSParser
 from modules.rss.resolver import RSSResolver
 from modules.rss.iv_generator import create_instant_view_link
+from modules.rss.translator import traducir_entry
 from utils.common import truncate_text
 from utils.logger import log
 
@@ -104,6 +105,8 @@ class RSSMonitor:
 
         enviados = 0
         for entry in nuevas:
+            if feed["traducir"]:
+                entry = await traducir_entry(entry)
             ok = await self._send_entry(feed, entry)
             if ok:
                 await db.execute(
@@ -198,5 +201,8 @@ class RSSMonitor:
         parsed, error = await RSSParser.parse(feed["url"])
         if error or not parsed["entries"]:
             return False, "No se pudo leer el feed."
-        ok = await self._send_entry(feed, parsed["entries"][0])
+        entry = parsed["entries"][0]
+        if feed["traducir"]:
+            entry = await traducir_entry(entry)
+        ok = await self._send_entry(feed, entry)
         return ok, "Noticia de prueba enviada." if ok else "Error enviando al canal."
