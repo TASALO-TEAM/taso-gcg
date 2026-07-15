@@ -113,6 +113,18 @@ Convención: 🔒 = requiere ser admin del chat · 👑 = solo SUDO_USERS (equip
 | `/logchannel` | Muestra el canal de log actual y sus categorías |
 | `/log <categorías>` / `/nolog <categorías>` | 🔒 Activa/desactiva categorías: settings, admin, user, automated, reports, other |
 
+Quién manda qué a cada categoría:
+- **admin** — `bans.py`: ban/tban/kick/mute/tmute/unban/unmute (comandos manuales).
+- **user** — `warns.py`: un `/warn` normal que no llega al límite.
+- **automated** — acciones que el bot aplica solo, sin que nadie escriba un comando:
+  `antiflood.py` (flood), `blacklist.py` (palabra prohibida con `warn`/`ban`), `warns.py`
+  (cuando el aviso llega al límite y dispara la sanción).
+
+Los mensajes con 🤖 son una frase corta generada con IA (Groq) que explica el motivo de
+una acción de la categoría `automated` — se manda aparte, después, y nunca decide nada;
+solo aparece si el bot tiene `GROQ_API_KEY` configurada (ver `.env.example`), si no,
+el log normal sigue llegando igual, solo sin esa frase extra.
+
 ## Deshabilitar comandos (`disabling.py`)
 | Comando | Descripción |
 |---|---|
@@ -154,5 +166,6 @@ Convención: 🔒 = requiere ser admin del chat · 👑 = solo SUDO_USERS (equip
 | `/setinterval <id> <min>` | 🔒 Cambia cada cuánto se revisa un feed |
 | `/setstyle <id> <bitbread\|texto>` | 🔒 Cambia el formato de publicación |
 | `/setrhash <id> <rhash\|none>` | 🔒 Plantilla de Instant View del feed |
+| `/settranslate <id> <on\|off>` | 🔒 Traduce título/descripción con IA antes de publicar (requiere `GROQ_API_KEY`) |
 | `/rmfeed <id>` | 🔒 Elimina un feed |
 | `/testfeed <id>` | 🔒 Manda la noticia más reciente sin esperar el intervalo |

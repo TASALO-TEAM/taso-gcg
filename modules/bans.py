@@ -5,6 +5,7 @@ from datetime import datetime, timedelta, timezone
 from telegram import Update
 from telegram.ext import Application, CommandHandler, ContextTypes
 
+from modules.log_channel import enviar_log
 from utils.decorators import user_admin, bot_admin, group_only
 from utils.common import extract_target_user, parse_duration, humanize_seconds
 
@@ -32,6 +33,7 @@ async def ban_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if razon:
             texto += f"\nMotivo: {razon}"
         await update.effective_message.reply_text(texto)
+        await enviar_log(context, chat.id, "admin", texto)
     except Exception as e:
         await update.effective_message.reply_text(f"⚠️ No pude banearlo: {e}")
 
@@ -56,9 +58,9 @@ async def tban_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     hasta = datetime.now(timezone.utc) + timedelta(seconds=segundos)
     try:
         await context.bot.ban_chat_member(chat.id, user_id, until_date=hasta)
-        await update.effective_message.reply_text(
-            f"⏳ {nombre} baneado por {humanize_seconds(segundos)}."
-        )
+        texto = f"⏳ {nombre} baneado por {humanize_seconds(segundos)}."
+        await update.effective_message.reply_text(texto)
+        await enviar_log(context, chat.id, "admin", texto)
     except Exception as e:
         await update.effective_message.reply_text(f"⚠️ No pude aplicar el ban temporal: {e}")
 
@@ -74,7 +76,9 @@ async def unban_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
     try:
         await context.bot.unban_chat_member(chat.id, user_id, only_if_banned=True)
-        await update.effective_message.reply_text(f"✅ {nombre} fue desbaneado.")
+        texto = f"✅ {nombre} fue desbaneado."
+        await update.effective_message.reply_text(texto)
+        await enviar_log(context, chat.id, "admin", texto)
     except Exception as e:
         await update.effective_message.reply_text(f"⚠️ No pude desbanearlo: {e}")
 
@@ -91,7 +95,9 @@ async def kick_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     try:
         await context.bot.ban_chat_member(chat.id, user_id)
         await context.bot.unban_chat_member(chat.id, user_id)  # kick real: ban + unban inmediato
-        await update.effective_message.reply_text(f"👢 {nombre} fue expulsado (puede volver a entrar).")
+        texto = f"👢 {nombre} fue expulsado (puede volver a entrar)."
+        await update.effective_message.reply_text(texto)
+        await enviar_log(context, chat.id, "admin", texto)
     except Exception as e:
         await update.effective_message.reply_text(f"⚠️ No pude expulsarlo: {e}")
 
@@ -107,7 +113,9 @@ async def mute_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
     try:
         await context.bot.restrict_chat_member(chat.id, user_id, permissions=_sin_permisos())
-        await update.effective_message.reply_text(f"🔇 {nombre} fue silenciado.")
+        texto = f"🔇 {nombre} fue silenciado."
+        await update.effective_message.reply_text(texto)
+        await enviar_log(context, chat.id, "admin", texto)
     except Exception as e:
         await update.effective_message.reply_text(f"⚠️ No pude silenciarlo: {e}")
 
@@ -133,9 +141,9 @@ async def tmute_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await context.bot.restrict_chat_member(
             chat.id, user_id, permissions=_sin_permisos(), until_date=hasta
         )
-        await update.effective_message.reply_text(
-            f"🔇 {nombre} silenciado por {humanize_seconds(segundos)}."
-        )
+        texto = f"🔇 {nombre} silenciado por {humanize_seconds(segundos)}."
+        await update.effective_message.reply_text(texto)
+        await enviar_log(context, chat.id, "admin", texto)
     except Exception as e:
         await update.effective_message.reply_text(f"⚠️ No pude silenciarlo: {e}")
 
@@ -151,7 +159,9 @@ async def unmute_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
     try:
         await context.bot.restrict_chat_member(chat.id, user_id, permissions=_permisos_normales())
-        await update.effective_message.reply_text(f"🔊 {nombre} puede hablar de nuevo.")
+        texto = f"🔊 {nombre} puede hablar de nuevo."
+        await update.effective_message.reply_text(texto)
+        await enviar_log(context, chat.id, "admin", texto)
     except Exception as e:
         await update.effective_message.reply_text(f"⚠️ No pude quitarle el silencio: {e}")
 

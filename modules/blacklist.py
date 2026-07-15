@@ -4,6 +4,8 @@ from telegram import Update, ChatPermissions
 from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes
 
 from core.database import db
+from modules.log_channel import enviar_log
+from modules.moderation_context import explicar_en_log
 from utils.decorators import user_admin, bot_admin, group_only
 
 __mod_name__ = "Lista negra"
@@ -28,11 +30,11 @@ async def _check_blacklist(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
     for fila in palabras:
         if fila["palabra"].lower() in texto:
-            await _aplicar_accion(update, context, fila["accion"])
+            await _aplicar_accion(update, context, fila["accion"], fila["palabra"])
             return
 
 
-async def _aplicar_accion(update: Update, context: ContextTypes.DEFAULT_TYPE, accion: str):
+async def _aplicar_accion(update: Update, context: ContextTypes.DEFAULT_TYPE, accion: str, palabra: str):
     message = update.effective_message
     chat = update.effective_chat
     user = update.effective_user
@@ -47,11 +49,23 @@ async def _aplicar_accion(update: Update, context: ContextTypes.DEFAULT_TYPE, ac
             "INSERT INTO warns(chat_id, user_id, razon, dado_por) VALUES (?,?,?,?)",
             (chat_row["id"], user.id, "Palabra prohibida", context.bot.id),
         )
+        texto_log = f"⚠️ {user.full_name} recibió un aviso por lista negra («{palabra}»)."
     elif accion == "ban":
         try:
             await context.bot.ban_chat_member(chat.id, user.id)
         except Exception:
             pass
+        texto_log = f"🔨 {user.full_name} baneado por lista negra («{palabra}»)."
+    else:
+        texto_log = f"🗑️ Mensaje de {user.full_name} borrado por lista negra («{palabra}»)."
+
+    await enviar_log(context, chat.id, "automated", texto_log)
+    if accion in ("warn", "ban"):
+        explicar_en_log(context, chat.id, "automated", {
+            "tipo": "blacklist",
+            "palabra_detectada": palabra,
+            "accion_aplicada": accion,
+        })
 
 
 @group_only

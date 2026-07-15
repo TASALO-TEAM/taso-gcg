@@ -7,6 +7,8 @@ from telegram.constants import ParseMode
 from telegram.ext import Application, CommandHandler, ContextTypes
 
 from core.database import db
+from modules.log_channel import enviar_log
+from modules.moderation_context import explicar_en_log
 from utils.decorators import user_admin, bot_admin, group_only
 from utils.common import extract_target_user, raw_text_after_command
 
@@ -62,8 +64,18 @@ async def warn_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await db.execute(
                 "DELETE FROM warns WHERE chat_id = ? AND user_id = ?", (chat_row["id"], user_id)
             )
+            await enviar_log(context, chat.id, "automated", texto)
+            explicar_en_log(context, chat.id, "automated", {
+                "tipo": "limite_avisos_alcanzado",
+                "cantidad_avisos": cantidad,
+                "limite": limite,
+                "accion_aplicada": accion,
+                "ultimo_motivo": razon,
+            })
         except Exception as e:
             texto += f"\n⚠️ No pude aplicar la sanción automática: {e}"
+    else:
+        await enviar_log(context, chat.id, "user", texto)
 
     await update.effective_message.reply_text(texto)
 

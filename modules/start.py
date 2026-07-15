@@ -59,7 +59,15 @@ HELP_TOPICS = {
                    "/funban /fbanlist"),
     "log": ("📋 Log de administración",
             "/setlog (en el canal) — vincula ese canal como log\n"
-            "/unsetlog /logchannel\n/log <categorías> /nolog <categorías>"),
+            "/unsetlog /logchannel\n/log <categorías> /nolog <categorías>\n\n"
+            "Categorías: settings, admin, user, automated, reports, other.\n"
+            "• admin: tus /ban /mute /kick manuales, etc.\n"
+            "• automated: acciones que el bot aplica solo (antiflood, lista negra, "
+            "límite de avisos).\n"
+            "Si ves un mensaje con 🤖, es una frase corta generada con IA (Groq) "
+            "explicando el motivo de una acción automática — nunca decide nada, "
+            "solo la explica después de ya aplicada. Si no tienes GROQ_API_KEY "
+            "configurada, esos mensajes simplemente no aparecen (el log normal sí)."),
     "disabling": ("🔕 Deshabilitar comandos",
                   "/disable <cmd> /enable <cmd> /disabled /disableable\n"
                   "/disabledel on|off /disableadmin on|off"),
@@ -74,7 +82,8 @@ HELP_TOPICS = {
     "rss": ("📰 RSS",
             "/addfeed — asistente para añadir un feed\n"
             "/myfeeds — ver y pausar/eliminar\n"
-            "/setinterval /setstyle /setrhash /rmfeed /testfeed"),
+            "/setinterval /setstyle /setrhash /rmfeed /testfeed\n"
+            "/settranslate <id> <on|off> — traduce con IA feeds en otro idioma (requiere Groq)"),
 }
 
 TOPIC_ALIASES = {
@@ -98,6 +107,8 @@ TOPIC_ALIASES = {
     "difusion": "broadcast", "difusión": "broadcast",
     "estadisticas": "stats", "estadísticas": "stats",
     "feed": "rss", "feeds": "rss", "noticias": "rss",
+    "traducir": "rss", "traduccion": "rss", "traducción": "rss",
+    "ia": "log", "groq": "log",
 }
 
 

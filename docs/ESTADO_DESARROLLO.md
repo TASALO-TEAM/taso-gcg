@@ -120,6 +120,8 @@ taso-gcg/
   módulos + bot.py importan y arrancan sin errores (verificado con `ApplicationBuilder` real +
   `load_all()` dentro de un event loop, igual que ocurre en producción). docs/README/COMANDOS.md
   escritos.
+- [x] **Fase 6 — IA vía Groq (traducción RSS + contexto de moderación)**: ver sección dedicada
+  más abajo, "Sesión: IA con Groq".
 
 ## Verificación real hecha en esta sesión (no solo "se ve bien", se corrió)
 
@@ -213,3 +215,72 @@ pip install -r requirements.txt
 cp .env.example .env   # editar TOKEN, SUDO_USERS
 python bot.py
 ```
+
+## Sesión: IA con Groq (traducción RSS + contexto de moderación)
+
+Origen: Ersus preguntó si valía la pena "llevar el bot al siguiente nivel" con IA,
+inspirado en Groq de bbchat (**no** de taso-bot — se verificó el repo de taso-bot y no
+usa Groq para nada, solo pandas/tradingview-ta para /ta /graf /p; esa confusión quedó
+aclarada con él). Se hizo primero un análisis de viabilidad antes de tocar código:
+
+- **Traducción de RSS**: viable y de bajo riesgo — aprobado e implementado.
+- **IA decidiendo bans en tiempo real**: **rechazado** — rompería "robusto/seguro"
+  (latencia en el camino crítico de moderación, riesgo de prompt injection vía texto
+  de usuarios, dependencia externa en una ruta de seguridad).
+- **IA explicando después de una acción ya tomada** (asíncrono, fire-and-forget, nunca
+  bloquea ni decide) — aprobado e implementado como término medio.
+
+### Piezas nuevas
+
+- `core/ai_client.py`: cliente Groq genérico y compartido (`ask_groq`), httpx + tenacity,
+  degradación controlada — si `GROQ_API_KEY` no está, devuelve `None` y quien llama decide
+  el fallback. Nunca propaga excepciones hacia arriba.
+- `modules/rss/translator.py`: traduce `title`/`description` de un feed marcado con
+  `traducir=1`. No detecta idioma por entrada (el idioma de un feed no cambia) — flag
+  estático por feed vía `/settranslate <id> <on|off>`. Fallback silencioso: si Groq falla,
+  se publica el entry original sin traducir.
+- `modules/moderation_context.py`: `explicar_en_log(context, tg_chat_id, categoria, evento)`.
+  Se llama DESPUÉS de que antiflood/blacklist/warns ya aplicaron su acción determinística de
+  siempre. Agenda una `asyncio.Task` (con referencia guardada en un `set` para que el GC no
+  se la coma a medias) que le pide a Groq una frase corta y la manda al log — todo esto nunca
+  bloquea la acción de moderación real. `evento` solo lleva métricas/etiquetas ya controladas
+  (conteos, nombre de acción, palabra que un ADMIN puso en la blacklist) — nunca texto libre
+  de un usuario cualquiera, precisamente para no abrir una puerta de prompt injection.
+- `core/database.py`: columna `feeds.traducir` + método `_migrate()` (ALTER TABLE seguro e
+  idempotente, corre en cada arranque, no rompe la DB ya desplegada en el VPS).
+
+### Módulos existentes conectados a `log_channel.enviar_log` (antes nadie lo llamaba)
+
+Se descubrió que `log_channel.py` (el flujo `/setlog`, categorías `settings/admin/user/
+automated/reports/other`) estaba completo pero **ningún módulo lo usaba** — el canal de log
+no recibía nada aún. Se conectó:
+
+- `antiflood.py`: log + contexto IA (categoría `automated`) en cada acción automática.
+- `blacklist.py`: log siempre; contexto IA solo si la acción fue `warn`/`ban` (un simple
+  `delete` no lo amerita). Categoría `automated`.
+- `warns.py`: si el aviso llega al límite y dispara la sanción automática → log + contexto
+  IA (`automated`). Si es solo un `/warn` manual con motivo del admin → log plano sin IA
+  (`user`), porque el admin ya explicó el motivo él mismo.
+- `bans.py`: log plano (sin IA) en ban/tban/kick/mute/tmute/unban/unmute, categoría `admin`
+  — son comandos manuales, el admin ya sabe por qué los usó, la IA no aporta nada ahí.
+
+### Verificación real hecha en esta sesión
+
+```
+pytest tests/ -q                          -> 26 passed (los mismos de antes, nada roto)
+Migración de DB probada contra una DB "vieja" simulada (sin la columna nueva)
+  -> columna agregada, feed existente preservado, segundo init() no la duplica
+translator.py probado con 3 casos: Groq caído / JSON inválido / éxito
+  -> los 3 caen bien, nunca rompe el envío del RSS
+moderation_context.py probado con 3 casos: éxito / Groq caído / Groq lanza excepción
+  -> explicar_en_log() retorna en <1ms en los 3 (fire-and-forget real, no bloquea)
+```
+
+### Qué falta / próximos pasos si se retoma
+
+1. Probar en el VPS real con `GROQ_API_KEY` puesto — todo lo de arriba es correcto en
+   aislamiento, pero nadie ha visto un mensaje real de "🤖 ..." aparecer en un canal de
+   log de verdad todavía.
+2. Posible mejora futura (no pedida, no implementada): un comando `/analizar` (respondiendo
+   a un mensaje) para que un admin pida la opinión de la IA en un caso gris puntual —
+   síncrono porque lo dispara un humano a propósito, la decisión la sigue tomando el admin.

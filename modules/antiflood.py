@@ -12,6 +12,8 @@ from telegram import Update, ChatPermissions
 from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes
 
 from core.database import db
+from modules.log_channel import enviar_log
+from modules.moderation_context import explicar_en_log
 from utils.decorators import user_admin, group_only
 
 __mod_name__ = "AntiFlood"
@@ -43,6 +45,7 @@ async def _check_flood(update: Update, context: ContextTypes.DEFAULT_TYPE):
     marcas[:] = [t for t in marcas if ahora - t <= VENTANA_SEGUNDOS]
 
     if len(marcas) > limite:
+        cantidad_mensajes = len(marcas)
         marcas.clear()
         accion = settings["flood_action"]
         try:
@@ -59,6 +62,13 @@ async def _check_flood(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 )
                 texto = f"🔇 {user.full_name} silenciado por flood."
             await update.effective_message.reply_text(texto)
+            await enviar_log(context, chat.id, "automated", texto)
+            explicar_en_log(context, chat.id, "automated", {
+                "tipo": "flood",
+                "mensajes_enviados": cantidad_mensajes,
+                "ventana_segundos": VENTANA_SEGUNDOS,
+                "accion_aplicada": accion,
+            })
         except Exception:
             pass
 
