@@ -8,6 +8,7 @@ como job periódico (ver core del bot.py / register_scheduler abajo).
 """
 
 import asyncio
+import difflib
 import time
 
 from telegram.constants import ParseMode
@@ -19,6 +20,16 @@ from modules.rss.iv_generator import create_instant_view_link
 from modules.rss.translator import traducir_entry
 from utils.common import truncate_text
 from utils.logger import log
+
+# --- Fase 2 de la deduplicación: red de seguridad por similitud de título.
+# El hash (parser.py) ya resuelve el caso de links/guid que cambian; esto
+# atrapa lo que se le escape a esa normalización (título casi idéntico con
+# alguna variación que no cubrió normalize_title, fuente que resirve el
+# mismo artículo con un guid distinto, etc.) dentro de una ventana de tiempo
+# razonable, sin gastar en IA. Umbral y ventana son los únicos números a
+# tocar si en la práctica salen falsos positivos/negativos.
+FUZZY_THRESHOLD = 0.90
+FUZZY_WINDOW_HOURS = 72
 
 DEFAULT_TEMPLATE = (
     "<b>#title#</b>\n\n"
@@ -101,17 +112,47 @@ class RSSMonitor:
             "SELECT entry_hash FROM feed_historial WHERE feed_id = ?", (feed["id"],)
         )
         vistos = {h["entry_hash"] for h in historial}
-        nuevas = [e for e in reversed(parsed["entries"]) if e["hash"] not in vistos]
+
+        # Fase 2: títulos ya enviados en las últimas FUZZY_WINDOW_HOURS para
+        # este feed, usados como red de seguridad por similitud (ver
+        # _es_duplicado_por_titulo). Ventana acotada a propósito: no tiene
+        # sentido comparar una noticia de hoy contra una de hace un mes.
+        recientes = await db.fetchall(
+            "SELECT titulo_normalizado FROM feed_historial "
+            "WHERE feed_id = ? AND titulo_normalizado IS NOT NULL "
+            "AND enviado_en >= datetime('now', ?)",
+            (feed["id"], f"-{FUZZY_WINDOW_HOURS} hours"),
+        )
+        titulos_recientes = [r["titulo_normalizado"] for r in recientes]
+
+        candidatas = [e for e in reversed(parsed["entries"]) if e["hash"] not in vistos]
+
+        nuevas = []
+        for entry in candidatas:
+            titulo_norm = RSSParser.normalize_title(entry["title"])
+            if self._es_duplicado_por_titulo(titulo_norm, titulos_recientes):
+                log(f"🔁 Duplicado por similitud de título, omitido: {entry['title'][:60]}", "debug")
+                # Se registra igual (sin enviar) para no re-evaluar esta misma
+                # entrada en cada ciclo mientras siga apareciendo en el feed.
+                await db.execute(
+                    "INSERT OR IGNORE INTO feed_historial(feed_id, entry_hash, titulo_normalizado) "
+                    "VALUES (?,?,?)",
+                    (feed["id"], entry["hash"], titulo_norm),
+                )
+                continue
+            nuevas.append((entry, titulo_norm))
+            titulos_recientes.append(titulo_norm)  # evita duplicados dentro del mismo lote
 
         enviados = 0
-        for entry in nuevas:
+        for entry, titulo_norm in nuevas:
             if feed["traducir"]:
                 entry = await traducir_entry(entry)
             ok = await self._send_entry(feed, entry)
             if ok:
                 await db.execute(
-                    "INSERT OR IGNORE INTO feed_historial(feed_id, entry_hash) VALUES (?,?)",
-                    (feed["id"], entry["hash"]),
+                    "INSERT OR IGNORE INTO feed_historial(feed_id, entry_hash, titulo_normalizado) "
+                    "VALUES (?,?,?)",
+                    (feed["id"], entry["hash"], titulo_norm),
                 )
                 await db.execute(
                     "INSERT INTO feed_stats(feed_id, enviados) VALUES (?, 1) "
@@ -132,6 +173,21 @@ class RSSMonitor:
                 "  ORDER BY enviado_en DESC LIMIT 200)",
                 (feed["id"], feed["id"]),
             )
+
+    @staticmethod
+    def _es_duplicado_por_titulo(titulo_norm: str, titulos_previos: list[str],
+                                  umbral: float = FUZZY_THRESHOLD) -> bool:
+        """True si titulo_norm se parece demasiado a alguno de los ya
+        enviados recientemente para este feed (mismo artículo reservido con
+        otro guid/link, o una variación mínima que la normalización no
+        atrapó). No compara contra OTROS feeds — eso es dedup cruzado entre
+        fuentes y es un problema distinto (fase 3, con IA, no implementada)."""
+        if not titulo_norm:
+            return False
+        for previo in titulos_previos:
+            if difflib.SequenceMatcher(None, titulo_norm, previo).ratio() >= umbral:
+                return True
+        return False
 
     async def _registrar_error(self, feed_id: int, error_msg: str):
         await db.execute(

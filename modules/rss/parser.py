@@ -10,7 +10,7 @@ import re
 import asyncio
 import hashlib
 import random
-from urllib.parse import urlparse
+from urllib.parse import urlparse, parse_qsl, urlencode
 from curl_cffi.requests import AsyncSession
 from bs4 import BeautifulSoup
 
@@ -18,6 +18,22 @@ from utils.logger import log
 
 
 class RSSParser:
+    # --- Deduplicación robusta (ver ESTADO_DESARROLLO.md / análisis del bug de
+    # reenvíos): el hash original era md5(link_crudo + titulo_crudo), lo cual
+    # se rompe apenas la fuente le pega un parámetro de tracking al link o
+    # edita un espacio del título. Estas listas y umbrales son los únicos
+    # puntos que hay que tocar si en el futuro aparece una fuente con un
+    # patrón de tracking nuevo que no cubran los prefijos de abajo.
+    TRACKING_PARAM_PATTERNS = (
+        "utm_", "fbclid", "gclid", "msclkid", "ref_src", "_ga", "_gl",
+        "spm", "cmpid", "campaign", "mc_cid", "mc_eid", "igshid", "vero_",
+        "session", "sid", "token", "cache", "_t", "timestamp", "rand", "nocache",
+    )
+    _EMOJI_PATTERN = re.compile(
+        "[\U0001F300-\U0001FAFF\U00002600-\U000027BF\U0001F1E6-\U0001F1FF\u2B00-\u2BFF]+",
+        flags=re.UNICODE,
+    )
+
     PROFILES = ["chrome120", "safari17_0", "safari15_5", "chrome110"]
     HEADERS = {
         "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8",
@@ -169,10 +185,57 @@ class RSSParser:
                 pass
         return None
 
-    @staticmethod
-    def _get_hash(entry):
-        raw = f"{entry.get('link', '')}{entry.get('title', '')}"
-        return hashlib.md5(raw.encode()).hexdigest()
+    @classmethod
+    def _normalize_link(cls, link: str) -> str:
+        """Quita querystring/fragment volátiles (tracking, cache-busters) sin
+        tocar parámetros que algunas fuentes SÍ usan como identificador real
+        del artículo (ej. ?id=1234). Solo se filtran los patrones conocidos
+        de tracking listados en TRACKING_PARAM_PATTERNS."""
+        if not link:
+            return ""
+        parsed = urlparse(link.strip())
+        netloc = parsed.netloc.lower()
+        path = parsed.path.rstrip("/") or "/"
+        pares = parse_qsl(parsed.query, keep_blank_values=True)
+        conservados = [
+            (k, v) for k, v in pares
+            if not any(pat in k.lower() for pat in cls.TRACKING_PARAM_PATTERNS)
+        ]
+        normalizado = f"{parsed.scheme}://{netloc}{path}"
+        if conservados:
+            normalizado += f"?{urlencode(conservados)}"
+        return normalizado
+
+    @classmethod
+    def normalize_title(cls, title: str) -> str:
+        """Título en minúsculas, sin emojis y con espacios colapsados.
+        Público (sin guion bajo) porque monitor.py también lo usa para la
+        capa de fuzzy-match (fase 2 de la deduplicación)."""
+        if not title:
+            return ""
+        limpio = cls._EMOJI_PATTERN.sub("", title)
+        limpio = re.sub(r"\s+", " ", limpio).strip().lower()
+        return limpio
+
+    @classmethod
+    def _get_hash(cls, entry) -> str:
+        """Identidad estable de la entrada. Prioridad:
+        1. GUID/ID nativo del feed (entry.id — el <guid> de RSS o <id> de
+           Atom), que el estándar diseñó justo para esto. Si el guid es en sí
+           una URL, se normaliza igual que un link.
+        2. Fallback: link normalizado + título normalizado, para feeds que no
+           traen guid (bastante comunes en scrapers/espejos tipo Nitter).
+
+        Importante: cuando hay guid, NO se mezcla con el título. Si se
+        mezclara, una fuente que edita el titular de un artículo ya publicado
+        (algo normal en medios) rompería el hash otra vez y reintroduciría el
+        mismo bug que estamos arreglando."""
+        guid = (entry.get("id") or "").strip()
+        if guid:
+            identidad = cls._normalize_link(guid) if guid.startswith("http") else guid
+        else:
+            identidad = cls._normalize_link(entry.get("link", "")) + "|" + cls.normalize_title(entry.get("title", ""))
+        return hashlib.md5(identidad.encode()).hexdigest()
 
     @classmethod
     async def fetch_content(cls, url):

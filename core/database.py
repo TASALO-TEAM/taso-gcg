@@ -177,9 +177,11 @@ CREATE INDEX IF NOT EXISTS idx_feeds_activo ON feeds(activo);
 CREATE TABLE IF NOT EXISTS feed_historial (
     feed_id INTEGER NOT NULL REFERENCES feeds(id) ON DELETE CASCADE,
     entry_hash TEXT NOT NULL,
+    titulo_normalizado TEXT,
     enviado_en TEXT DEFAULT (datetime('now')),
     PRIMARY KEY (feed_id, entry_hash)
 );
+CREATE INDEX IF NOT EXISTS idx_feed_historial_feed_fecha ON feed_historial(feed_id, enviado_en);
 
 CREATE TABLE IF NOT EXISTS feed_stats (
     feed_id INTEGER PRIMARY KEY REFERENCES feeds(id) ON DELETE CASCADE,
@@ -251,11 +253,14 @@ class Database:
         de correr en cada arranque, tanto en una DB nueva como en la del VPS."""
         migraciones = [
             ("feeds", "traducir", "INTEGER NOT NULL DEFAULT 0"),
+            ("feed_historial", "titulo_normalizado", "TEXT"),
         ]
-        cur = await self._conn.execute("PRAGMA table_info(feeds)")
-        columnas_existentes = {row[1] for row in await cur.fetchall()}
+        columnas_por_tabla = {}
+        for tabla in {t for t, _, _ in migraciones}:
+            cur = await self._conn.execute(f"PRAGMA table_info({tabla})")
+            columnas_por_tabla[tabla] = {row[1] for row in await cur.fetchall()}
         for tabla, columna, tipo in migraciones:
-            if tabla == "feeds" and columna in columnas_existentes:
+            if columna in columnas_por_tabla.get(tabla, set()):
                 continue
             try:
                 await self._conn.execute(f"ALTER TABLE {tabla} ADD COLUMN {columna} {tipo}")
