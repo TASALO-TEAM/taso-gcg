@@ -17,7 +17,7 @@ __mod_name__ = "Aprobaciones"
 @group_only
 @user_admin
 async def approve_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user_id, nombre = extract_target_user(update)
+    user_id, nombre = await extract_target_user(update, context)
     if not user_id:
         await update.effective_message.reply_text("Responde al mensaje de quien quieres aprobar.")
         return
@@ -35,7 +35,7 @@ async def approve_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 @group_only
 async def approval_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user_id, nombre = extract_target_user(update)
+    user_id, nombre = await extract_target_user(update, context)
     if not user_id:
         await update.effective_message.reply_text("Responde al mensaje de quien quieres consultar.")
         return
@@ -70,7 +70,7 @@ async def approved_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
 @group_only
 @user_admin
 async def unapprove_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user_id, nombre = extract_target_user(update)
+    user_id, nombre = await extract_target_user(update, context)
     if not user_id:
         await update.effective_message.reply_text("Responde al mensaje de quien quieres desaprobar.")
         return

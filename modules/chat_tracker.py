@@ -1,9 +1,15 @@
-"""Registro automático de chats.
+"""Registro automático de chats (y de usuarios).
 
 Cada vez que el bot recibe cualquier update de un chat (mensaje, o cambio de
 su propio estado de membresía), nos aseguramos de que ese chat exista en la
 tabla `chats`. Así el resto de módulos (warns, locks, feeds...) siempre pueden
 asumir que el chat ya está en la base de datos.
+
+Además, cada mensaje con remitente real actualiza la caché de usuarios
+(tabla `users`, ver core/database.py). Esto es lo único que hace posible
+resolver un `@username` a su user_id en /ban, /mute, /id, etc. — la Bot API
+de Telegram no deja buscar un usuario cualquiera por username si el bot
+nunca lo ha "visto" antes, a diferencia de grupos/canales.
 """
 
 from telegram import Update
@@ -16,6 +22,8 @@ from utils.logger import log
 async def _track_from_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.effective_chat:
         await db.ensure_chat(update.effective_chat)
+    if update.effective_user:
+        await db.upsert_user(update.effective_user)
 
 
 async def _on_bot_membership_change(update: Update, context: ContextTypes.DEFAULT_TYPE):

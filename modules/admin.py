@@ -3,12 +3,21 @@
 Comandos: /promote /demote /pin /unpin /purge /title /id /admins
 """
 
-from telegram import Update, ChatMemberAdministrator
+from html import escape
+
+from telegram import (
+    MessageOriginChannel,
+    MessageOriginChat,
+    MessageOriginHiddenUser,
+    MessageOriginUser,
+    Update,
+)
 from telegram.constants import ParseMode
 from telegram.ext import Application, CommandHandler, ContextTypes
 
+from core.database import db
 from utils.decorators import user_admin, bot_admin, group_only, refresh_admin_cache
-from utils.common import extract_target_user
+from utils.common import estimate_account_creation, extract_target_user, resolve_username
 from utils.logger import log
 
 __mod_name__ = "Administración"
@@ -19,7 +28,7 @@ __mod_name__ = "Administración"
 @bot_admin
 async def promote_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     chat = update.effective_chat
-    user_id, nombre = extract_target_user(update)
+    user_id, nombre = await extract_target_user(update, context)
     if not user_id:
         await update.effective_message.reply_text("Responde al mensaje de la persona que quieres promover.")
         return
@@ -40,7 +49,7 @@ async def promote_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
 @bot_admin
 async def demote_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     chat = update.effective_chat
-    user_id, nombre = extract_target_user(update)
+    user_id, nombre = await extract_target_user(update, context)
     if not user_id:
         await update.effective_message.reply_text("Responde al mensaje de la persona que quieres degradar.")
         return
@@ -124,14 +133,155 @@ async def title_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
 
 
+def _campo_usuario(obj) -> dict:
+    """Normaliza un telegram.User o una fila de la tabla `users` (dict) a la
+    misma forma, para no tener que repetir el renderizado dos veces."""
+    if isinstance(obj, dict):
+        return {
+            "id": obj["user_id"], "is_bot": bool(obj.get("is_bot")),
+            "first_name": obj.get("first_name"), "last_name": obj.get("last_name"),
+            "username": obj.get("username"), "language_code": obj.get("language_code"),
+            "is_premium": bool(obj.get("is_premium")),
+        }
+    return {
+        "id": obj.id, "is_bot": obj.is_bot,
+        "first_name": obj.first_name, "last_name": obj.last_name,
+        "username": obj.username, "language_code": getattr(obj, "language_code", None),
+        "is_premium": bool(getattr(obj, "is_premium", False)),
+    }
+
+
+def _bloque_usuario(obj, etiqueta: str) -> str:
+    u = _campo_usuario(obj)
+    lineas = [
+        f"👤 <b>{escape(etiqueta)}</b>",
+        f" ├ id: <code>{u['id']}</code>",
+        f" ├ is_bot: {'true' if u['is_bot'] else 'false'}",
+        f" ├ first_name: {escape(u['first_name'] or '-')}",
+    ]
+    if u["last_name"]:
+        lineas.append(f" ├ last_name: {escape(u['last_name'])}")
+    lineas.append(f" ├ username: {('@' + u['username']) if u['username'] else '-'}")
+    # El "(⭐/-)" es el estado de Telegram Premium, no un dato aparte del idioma.
+    marca_premium = "⭐" if u["is_premium"] else "-"
+    lineas.append(f" ├ language_code: {u['language_code'] or '-'} ({marca_premium})")
+    lineas.append(f" └ created: {estimate_account_creation(u['id'])}")
+    return "\n".join(lineas)
+
+
+def _bloque_chat(chat, etiqueta: str) -> str:
+    titulo = getattr(chat, "title", None) or getattr(chat, "full_name", None) or "-"
+    username = getattr(chat, "username", None)
+    return (
+        f"💬 <b>{escape(etiqueta)}</b>\n"
+        f" ├ id: <code>{chat.id}</code>\n"
+        f" ├ title: {escape(titulo)}\n"
+        f" ├ username: {('@' + username) if username else '-'}\n"
+        f" └ type: {chat.type}"
+    )
+
+
+def _bloques_de_mensaje(message) -> list[str]:
+    """A partir de un mensaje (el respondido), arma uno o dos bloques:
+    quién/qué lo mandó, y si además viene reenviado, de dónde viene en
+    realidad — esto último es lo que permite sacarle el ID a un canal:
+    se reenvía un post suyo al grupo, se responde a ese reenvío con /id,
+    y "Origin chat" muestra el canal real aunque el mensaje reenviado en
+    sí lo haya mandado un miembro del grupo (o nadie, si vino directo del
+    canal, donde no hay usuario real detrás, solo el canal como remitente)."""
+    bloques = []
+    if message.from_user:
+        bloques.append(_bloque_usuario(message.from_user, message.from_user.full_name))
+    elif message.sender_chat:
+        bloques.append(_bloque_chat(message.sender_chat, message.sender_chat.title or "Origin chat"))
+
+    origen = message.forward_origin
+    if isinstance(origen, MessageOriginChannel):
+        bloques.append(_bloque_chat(origen.chat, "Origin chat"))
+    elif isinstance(origen, MessageOriginChat):
+        bloques.append(_bloque_chat(origen.sender_chat, "Origin chat"))
+    elif isinstance(origen, MessageOriginUser) and not message.from_user:
+        bloques.append(_bloque_usuario(origen.sender_user, origen.sender_user.full_name))
+    elif isinstance(origen, MessageOriginHiddenUser):
+        bloques.append(
+            f"💬 <b>Origin</b>\n └ nombre: {escape(origen.sender_user_name)} "
+            "(reenvíos ocultos: Telegram no da más datos que el nombre)"
+        )
+    return bloques
+
+
+async def _bloque_desde_argumento(context: ContextTypes.DEFAULT_TYPE, entrada: str) -> str | None:
+    """Resuelve un argumento de /id: un ID numérico (de usuario o de chat) o
+    un @username (de usuario o de chat/canal). Devuelve el bloque ya
+    renderizado, o None si no se pudo identificar nada."""
+    entrada = entrada.strip()
+
+    if entrada.lstrip("-").isdigit():
+        num = int(entrada)
+        if num > 0:  # positivo = user_id; probamos la caché local antes de gastar una llamada
+            fila = await db.get_user(num)
+            if fila:
+                nombre = fila["first_name"] or f"Usuario {num}"
+                if fila["last_name"]:
+                    nombre = f"{nombre} {fila['last_name']}"
+                return _bloque_usuario(fila, nombre)
+        try:
+            chat = await context.bot.get_chat(num)
+        except Exception:
+            return None
+        if chat.type == "private":
+            return _bloque_usuario(chat, chat.full_name or "Usuario")
+        return _bloque_chat(chat, "Chat")
+
+    username = entrada.lstrip("@")
+    resultado = await resolve_username(context, username)
+    if resultado:
+        user_id, nombre = resultado
+        fila = await db.get_user(user_id)
+        if fila:
+            return _bloque_usuario(fila, nombre)
+        return f"👤 <b>{escape(nombre)}</b>\n └ id: <code>{user_id}</code>"
+
+    try:
+        chat = await context.bot.get_chat(f"@{username}")
+        return _bloque_chat(chat, "Chat")
+    except Exception:
+        return None
+
+
 async def id_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    chat = update.effective_chat
     message = update.effective_message
+    chat = update.effective_chat
+
+    if context.args:
+        bloque = await _bloque_desde_argumento(context, context.args[0])
+        if not bloque:
+            await message.reply_text(
+                "No pude identificar eso. Si es una persona, tiene que haber "
+                "escrito al menos un mensaje en algún chat donde esté el bot "
+                "para poder resolverla por @usuario — es una limitación de la "
+                "propia API de Telegram, no hay forma de saltársela."
+            )
+            return
+        await message.reply_text(bloque, parse_mode=ParseMode.HTML)
+        return
+
     if message.reply_to_message:
-        u = message.reply_to_message.from_user
-        await message.reply_text(f"👤 {u.full_name}: <code>{u.id}</code>", parse_mode=ParseMode.HTML)
-    else:
-        await message.reply_text(f"💬 ID de este chat: <code>{chat.id}</code>", parse_mode=ParseMode.HTML)
+        bloques = _bloques_de_mensaje(message.reply_to_message)
+        if not bloques:
+            await message.reply_text("No pude sacar información de ese mensaje.")
+            return
+        await message.reply_text("\n\n".join(bloques), parse_mode=ParseMode.HTML)
+        return
+
+    # Sin argumento ni respuesta: quién pregunta + en qué chat está.
+    # update.effective_user viene vacío en un post directo de canal (ahí no
+    # hay un usuario real detrás, todo lo manda el canal de forma anónima).
+    bloques = []
+    if update.effective_user:
+        bloques.append(_bloque_usuario(update.effective_user, "You"))
+    bloques.append(_bloque_chat(chat, "Origin chat"))
+    await message.reply_text("\n\n".join(bloques), parse_mode=ParseMode.HTML)
 
 
 @group_only

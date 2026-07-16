@@ -200,6 +200,26 @@ CREATE TABLE IF NOT EXISTS connections (
     tg_chat_id INTEGER NOT NULL,
     conectado_en TEXT DEFAULT (datetime('now'))
 );
+
+-- === Caché local de usuarios vistos (id, username, nombre...) ===
+-- Necesaria porque la Bot API de Telegram NO deja resolver un @username
+-- arbitrario a su user_id salvo que el bot ya "conozca" a ese usuario por
+-- algún otro medio (a diferencia de grupos/canales, que sí son resolubles
+-- siempre vía get_chat porque su username es público). Se alimenta con cada
+-- mensaje que el bot ve pasar (chat_tracker.py) — si alguien nunca escribió
+-- en un chat donde está el bot, su @username simplemente no es resoluble
+-- todavía, es una limitación real de la plataforma, no un bug del bot.
+CREATE TABLE IF NOT EXISTS users (
+    user_id INTEGER PRIMARY KEY,
+    username TEXT,
+    first_name TEXT,
+    last_name TEXT,
+    is_bot INTEGER NOT NULL DEFAULT 0,
+    language_code TEXT,
+    is_premium INTEGER NOT NULL DEFAULT 0,
+    visto_en TEXT DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_users_username ON users(username COLLATE NOCASE);
 """
 
 
@@ -403,6 +423,42 @@ class Database:
 
     async def clear_connection(self, user_id: int):
         await self.execute("DELETE FROM connections WHERE user_id = ?", (user_id,))
+
+    # --- Caché de usuarios (resolución de @username -> user_id) ---
+    async def upsert_user(self, user) -> None:
+        """Guarda o actualiza los datos vistos de un usuario. Se llama en cada
+        mensaje que pasa por el bot (ver chat_tracker.py) para que /id y los
+        comandos de moderación puedan resolver @username más adelante."""
+        if not user:
+            return
+        await self.execute(
+            "INSERT INTO users(user_id, username, first_name, last_name, is_bot, "
+            "language_code, is_premium, visto_en) VALUES (?,?,?,?,?,?,?, datetime('now')) "
+            "ON CONFLICT(user_id) DO UPDATE SET username=excluded.username, "
+            "first_name=excluded.first_name, last_name=excluded.last_name, "
+            "is_bot=excluded.is_bot, language_code=excluded.language_code, "
+            "is_premium=excluded.is_premium, visto_en=excluded.visto_en",
+            (
+                user.id,
+                getattr(user, "username", None),
+                getattr(user, "first_name", None),
+                getattr(user, "last_name", None),
+                1 if getattr(user, "is_bot", False) else 0,
+                getattr(user, "language_code", None),
+                1 if getattr(user, "is_premium", False) else 0,
+            ),
+        )
+
+    async def find_user_by_username(self, username: str) -> dict | None:
+        """Busca en la caché local. Solo encuentra a quien ya haya escrito
+        al menos un mensaje en algún chat donde el bot esté presente."""
+        username = username.lstrip("@")
+        return await self.fetchone(
+            "SELECT * FROM users WHERE username = ? COLLATE NOCASE", (username,)
+        )
+
+    async def get_user(self, user_id: int) -> dict | None:
+        return await self.fetchone("SELECT * FROM users WHERE user_id = ?", (user_id,))
 
 
 db = Database()

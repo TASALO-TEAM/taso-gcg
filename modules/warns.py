@@ -19,7 +19,7 @@ __mod_name__ = "Avisos"
 @user_admin
 async def warn_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     chat = update.effective_chat
-    user_id, nombre = extract_target_user(update)
+    user_id, nombre = await extract_target_user(update, context)
     if not user_id:
         await update.effective_message.reply_text("Responde al mensaje de quien quieres avisar.")
         return
@@ -82,7 +82,7 @@ async def warn_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 @group_only
 async def warns_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user_id, nombre = extract_target_user(update)
+    user_id, nombre = await extract_target_user(update, context)
     if not user_id:
         user_id, nombre = update.effective_user.id, update.effective_user.full_name
     chat_row = await db.ensure_chat(update.effective_chat)
@@ -102,7 +102,7 @@ async def warns_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
 @group_only
 @user_admin
 async def resetwarns_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user_id, nombre = extract_target_user(update)
+    user_id, nombre = await extract_target_user(update, context)
     if not user_id:
         await update.effective_message.reply_text("Responde al mensaje de quien quieres limpiar los avisos.")
         return

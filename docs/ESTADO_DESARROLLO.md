@@ -284,3 +284,75 @@ moderation_context.py probado con 3 casos: éxito / Groq caído / Groq lanza exc
 2. Posible mejora futura (no pedida, no implementada): un comando `/analizar` (respondiendo
    a un mensaje) para que un admin pida la opinión de la IA en un caso gris puntual —
    síncrono porque lo dispara un humano a propósito, la decisión la sigue tomando el admin.
+
+---
+
+## Sesión: fix /setlog (no vinculaba canales), @usuario en menciones, /id "pro"
+
+Origen: Ersus reportó tres problemas relacionados con identificar usuarios/chats:
+
+1. **`/setlog` no dejaba añadir canales.** Causa real: `_detectar_reenvio_setlog` exigía
+   `message.reply_to_message` en el mensaje reenviado — algo que un reenvío normal de
+   Telegram NUNCA trae (reenviar y responder son dos acciones distintas e incompatibles en
+   el cliente), así que la condición jamás se cumplía. El dato correcto ya venía disponible
+   en `message.forward_origin` (`MessageOriginChannel.chat` + `.message_id`), que además
+   permite validar que el reenvío viene del mismo canal que pidió el `/setlog` (antes no
+   había ningún chequeo de eso). Fix en `modules/log_channel.py`.
+
+2. **`@usuario` en menciones no funcionaba para nada.** `extract_target_user` solo miraba
+   entidades `text_mention` (mención por nombre visible, sin @username — ahí Telegram sí
+   manda el `user_id` embebido). Una mención `@usuario` en texto plano es una entidad
+   `mention` distinta, donde Telegram NO manda ningún `user_id`, solo el texto — y ese caso
+   ni se intentaba resolver. Como la Bot API no deja buscar un usuario cualquiera por
+   username salvo que el bot ya lo "conozca" de antes (restricción real de la plataforma,
+   no un bug nuestro), se agregó una tabla `users` (caché local: id/username/nombre/
+   is_premium/language_code) que se alimenta en `chat_tracker.py` con cada mensaje que pasa
+   por el bot. `extract_target_user` (ahora async) y la nueva `resolve_username` resuelven
+   primero contra esa caché y, si no está, intentan `get_chat("@usuario")` como último
+   recurso. Afecta a `/ban /tban /unban /kick /mute /tmute /warn /resetwarns /promote
+   /demote /fban /funban /approve /unapprove` — todos ahora aceptan `@usuario` además de
+   responder al mensaje, siempre que esa persona ya haya escrito antes en algún chat con
+   el bot presente.
+
+3. **`/id` en canales no servía y el formato era muy básico.** Antes asumía
+   `reply_to_message.from_user` siempre presente — en un post de canal no hay usuario real
+   detrás (solo `sender_chat`), así que reventaba en silencio. Reescrito en
+   `modules/admin.py` con salida en bloques 👤/💬 (formato pedido por Ersus):
+   - Sin argumento ni reply: tu info (`👤 You`) + el chat actual (`💬 Origin chat`).
+   - Respondiendo a un mensaje: info de quien lo mandó (usuario o canal-como-remitente), y
+     si ese mensaje a su vez es un reenvío, un segundo bloque con el origen real —
+     así es como se saca el ID de un canal: reenviar un post suyo al grupo y responder
+     `/id` a ese reenvío.
+   - `/id @usuario` o `/id <id>`: resuelve usuario o chat/canal directamente.
+   - `created: ~ M/AAAA (?)`: estimado de fecha de creación de cuenta a partir del
+     user_id, por interpolación entre puntos de referencia conocidos
+     (`utils/common.py::estimate_account_creation`). Técnica estándar de este tipo de
+     bots (igual que "Creation Date"/"GetIDs Bot") — Telegram no expone esto por API,
+     así que **siempre** es aproximado, nunca un dato oficial (de ahí el "(?)" fijo).
+     Los checkpoints se pueden ajustar en esa misma tabla si Ersus junta datos propios
+     más precisos más adelante.
+
+### Verificación real hecha en esta sesión
+
+```
+pytest tests/ -q               -> 48 passed (26 previos + 22 nuevos, nada roto)
+ApplicationBuilder + load_all() dentro de un event loop real
+  -> 22 módulos, 94 handlers (igual que antes del cambio, comparado contra el zip original)
+Import de todos los modules/*.py uno por uno -> sin errores
+```
+
+Tests nuevos: `test_database.py` (caché de usuarios), `test_common.py` (extract_target_user
+con los 3 casos — reply/text_mention/mention resuelto por caché o API —, y
+estimate_account_creation), `test_log_channel.py` (el fix del reenvío, incluyendo el caso
+de seguridad de canal-distinto-al-esperado), `test_admin_id.py` (formato de los bloques y
+el caso base de `/id`).
+
+### Qué falta / próximos pasos si se retoma
+
+1. El estimado de fecha de creación es una aproximación basada en checkpoints públicos de
+   crecimiento de Telegram, no en datos verificados uno por uno — si en algún momento Ersus
+   junta ejemplos reales (cuenta con fecha de creación conocida + su ID), vale la pena
+   afinar `_CHECKPOINTS_CREACION` en `utils/common.py`.
+2. La caché de `users` solo se llena desde grupos (`chat_tracker.py` está filtrado a
+   `ChatType.GROUPS`) — si en algún momento hace falta resolver @usuario también a partir
+   de mensajes en privado con el bot, habría que ampliar ese filtro.

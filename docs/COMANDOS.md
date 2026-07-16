@@ -2,6 +2,11 @@
 
 Convención: 🔒 = requiere ser admin del chat · 👑 = solo SUDO_USERS (equipo TASALO) · sin marca = cualquiera.
 
+Nota: todo comando marcado "(respondiendo)" también acepta `@usuario` como alternativa
+(ej. `/ban @fulano`), siempre que esa persona ya haya escrito al menos un mensaje en algún
+chat donde esté el bot — Telegram no deja resolver un @usuario al que el bot nunca le haya
+visto un mensaje, así que si no funciona no es un bug, es que el bot todavía no lo conoce.
+
 ## Inicio (`start.py`)
 | Comando | Descripción |
 |---|---|
@@ -17,7 +22,7 @@ Convención: 🔒 = requiere ser admin del chat · 👑 = solo SUDO_USERS (equip
 | `/unpin` | 🔒 Desfija (el mensaje respondido, o todos si no se responde a nada) |
 | `/purge` (respondiendo) | 🔒 Borra desde el mensaje respondido hasta el comando |
 | `/title` | Muestra nombre/ID/tipo del chat |
-| `/id` | ID del chat, o del usuario si se responde a su mensaje |
+| `/id` | Sin nada: tu info + la del chat actual. Respondiendo: info de quien mandó ese mensaje (y del canal de origen si era un reenvío). `/id @usuario` o `/id <id>`: info de ese usuario o chat |
 | `/admins` | Lista los administradores del chat |
 
 ## Bans (`bans.py`)

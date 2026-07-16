@@ -7,7 +7,7 @@ un bot de este tipo):
 3. Al reenviarlo en el grupo, queda vinculado.
 """
 
-from telegram import Update
+from telegram import MessageOriginChannel, Update
 from telegram.constants import ParseMode
 from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes
 
@@ -36,12 +36,23 @@ async def setlog_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 async def _detectar_reenvio_setlog(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Detecta el reenvío del mensaje de confirmación de /setlog dentro del grupo.
+
+    Bug original: se exigía `message.reply_to_message`, algo que un reenvío
+    normal de Telegram NUNCA trae (reenviar y responder son dos acciones
+    distintas e incompatibles en el cliente) — por eso nunca se podía enlazar
+    ningún canal. El dato correcto ya viene en `forward_origin`: para un
+    reenvío que viene de un canal, Telegram entrega un `MessageOriginChannel`
+    con el chat de origen y el message_id original, que es justo lo que hace
+    falta para encontrar el /setlog pendiente (y de paso confirmar que el
+    reenvío viene del mismo canal que lo pidió, no de cualquier otro).
+    """
     message = update.effective_message
-    if not message.forward_origin or not message.reply_to_message:
+    origen = message.forward_origin
+    if not isinstance(origen, MessageOriginChannel):
         return
-    origen_id = message.reply_to_message.message_id
-    tg_chat_id_canal = _pendientes_setlog.pop(origen_id, None)
-    if not tg_chat_id_canal:
+    tg_chat_id_canal = _pendientes_setlog.pop(origen.message_id, None)
+    if tg_chat_id_canal is None or tg_chat_id_canal != origen.chat.id:
         return
 
     chat_row = await db.ensure_chat(update.effective_chat)

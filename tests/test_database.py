@@ -154,3 +154,50 @@ async def test_connection_clear(test_db):
     await test_db.set_connection(555, -100333)
     await test_db.clear_connection(555)
     assert await test_db.get_connection(555) is None
+
+
+class UsuarioFalso:
+    """Sustituto mínimo de telegram.User para no depender de la librería."""
+    def __init__(self, id, username=None, first_name="Nombre", last_name=None,
+                 is_bot=False, language_code="es", is_premium=False):
+        self.id = id
+        self.username = username
+        self.first_name = first_name
+        self.last_name = last_name
+        self.is_bot = is_bot
+        self.language_code = language_code
+        self.is_premium = is_premium
+
+
+@pytest.mark.asyncio
+async def test_upsert_user_crea_y_permite_buscar_por_username(test_db):
+    assert await test_db.find_user_by_username("iamersus") is None
+
+    await test_db.upsert_user(UsuarioFalso(id=1148031284, username="iamersus", first_name="ersus"))
+
+    fila = await test_db.find_user_by_username("iamersus")
+    assert fila is not None
+    assert fila["user_id"] == 1148031284
+    assert fila["first_name"] == "ersus"
+
+    # Debe funcionar aunque el @ venga incluido, y sin importar mayúsculas/minúsculas
+    assert (await test_db.find_user_by_username("@IamErsus"))["user_id"] == 1148031284
+
+
+@pytest.mark.asyncio
+async def test_upsert_user_actualiza_username_si_cambia(test_db):
+    await test_db.upsert_user(UsuarioFalso(id=42, username="viejo"))
+    await test_db.upsert_user(UsuarioFalso(id=42, username="nuevo"))
+
+    assert await test_db.find_user_by_username("viejo") is None
+    fila = await test_db.find_user_by_username("nuevo")
+    assert fila["user_id"] == 42
+
+
+@pytest.mark.asyncio
+async def test_get_user_por_id(test_db):
+    assert await test_db.get_user(999) is None
+    await test_db.upsert_user(UsuarioFalso(id=999, username="alguien", is_premium=True))
+    fila = await test_db.get_user(999)
+    assert fila["username"] == "alguien"
+    assert fila["is_premium"] == 1

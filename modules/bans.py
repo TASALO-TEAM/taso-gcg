@@ -22,7 +22,7 @@ def _razon_desde_args(context, offset=0):
 @bot_admin
 async def ban_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     chat = update.effective_chat
-    user_id, nombre = extract_target_user(update)
+    user_id, nombre = await extract_target_user(update, context)
     if not user_id:
         await update.effective_message.reply_text("Responde al mensaje de quien quieres banear.")
         return
@@ -44,7 +44,7 @@ async def ban_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def tban_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Uso: /tban (respondiendo) 1h [motivo]"""
     chat = update.effective_chat
-    user_id, nombre = extract_target_user(update)
+    user_id, nombre = await extract_target_user(update, context)
     if not user_id:
         await update.effective_message.reply_text("Responde al mensaje de quien quieres banear temporalmente.")
         return
@@ -70,7 +70,7 @@ async def tban_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
 @bot_admin
 async def unban_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     chat = update.effective_chat
-    user_id, nombre = extract_target_user(update)
+    user_id, nombre = await extract_target_user(update, context)
     if not user_id:
         await update.effective_message.reply_text("Responde al mensaje o menciona a quien quieres desbanear.")
         return
@@ -88,7 +88,7 @@ async def unban_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
 @bot_admin
 async def kick_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     chat = update.effective_chat
-    user_id, nombre = extract_target_user(update)
+    user_id, nombre = await extract_target_user(update, context)
     if not user_id:
         await update.effective_message.reply_text("Responde al mensaje de quien quieres expulsar.")
         return
@@ -107,7 +107,7 @@ async def kick_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
 @bot_admin
 async def mute_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     chat = update.effective_chat
-    user_id, nombre = extract_target_user(update)
+    user_id, nombre = await extract_target_user(update, context)
     if not user_id:
         await update.effective_message.reply_text("Responde al mensaje de quien quieres mutear.")
         return
@@ -125,7 +125,7 @@ async def mute_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
 @bot_admin
 async def tmute_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     chat = update.effective_chat
-    user_id, nombre = extract_target_user(update)
+    user_id, nombre = await extract_target_user(update, context)
     if not user_id:
         await update.effective_message.reply_text("Responde al mensaje de quien quieres silenciar.")
         return
@@ -153,7 +153,7 @@ async def tmute_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
 @bot_admin
 async def unmute_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     chat = update.effective_chat
-    user_id, nombre = extract_target_user(update)
+    user_id, nombre = await extract_target_user(update, context)
     if not user_id:
         await update.effective_message.reply_text("Responde al mensaje de quien quieres quitarle el silencio.")
         return

@@ -28,7 +28,7 @@ __mod_name__ = "Federación TASALO"
 @user_admin
 async def fban_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Banea a un usuario en TODOS los chats oficiales TASALO a la vez."""
-    user_id, nombre = extract_target_user(update)
+    user_id, nombre = await extract_target_user(update, context)
     if not user_id:
         await update.effective_message.reply_text("Responde al mensaje de quien quieres banear de la federación.")
         return
@@ -63,7 +63,7 @@ async def fban_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
 @user_admin
 async def funban_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Revierte un fban en todos los chats oficiales."""
-    user_id, nombre = extract_target_user(update)
+    user_id, nombre = await extract_target_user(update, context)
     if not user_id:
         await update.effective_message.reply_text("Responde al mensaje o menciona a quien quieres desbanear.")
         return
