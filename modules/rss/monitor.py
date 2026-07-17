@@ -37,6 +37,22 @@ DEFAULT_TEMPLATE = (
     "<i><b>🔗 Fuente:</b><a href='#link#'> #source#</a></i>"
 )
 
+# --- Estilo "social" (X/Twitter y espejos Nitter): en estas fuentes el título
+# que trae el feed es casi siempre el mismo cuerpo del post que la descripción
+# (a veces truncado), así que DEFAULT_TEMPLATE termina mostrando el texto dos
+# veces. Esta plantilla usa solo #description# — que suele traer el texto
+# completo con sus saltos de línea — y omite #title# por completo.
+SOCIAL_TEMPLATE = (
+    "#description#\n\n"
+    "<i><b>🔗 Fuente:</b><a href='#link#'> #source#</a></i>"
+)
+
+TEMPLATES_BY_STYLE = {
+    "bitbread": DEFAULT_TEMPLATE,
+    "texto": DEFAULT_TEMPLATE,
+    "social": SOCIAL_TEMPLATE,
+}
+
 
 class RSSMonitor:
     def __init__(self, bot):
@@ -197,8 +213,8 @@ class RSSMonitor:
         )
 
     async def _send_entry(self, feed: dict, entry: dict) -> bool:
-        template = feed["plantilla"] or DEFAULT_TEMPLATE
         style = feed["estilo"] or "bitbread"
+        template = feed["plantilla"] or TEMPLATES_BY_STYLE.get(style, DEFAULT_TEMPLATE)
         user_rhash = feed["rhash"]
 
         iv_link = await create_instant_view_link(entry["link"], user_rhash)
@@ -216,7 +232,7 @@ class RSSMonitor:
         limit_text = 4090 - max(0, offset)
         chat_tg_id = feed["chat_tg_id"]
 
-        if style == "bitbread":
+        if style in ("bitbread", "social"):
             try:
                 safe_caption = truncate_text(text, limit=int(limit_caption))
                 if entry.get("video"):

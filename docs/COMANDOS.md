@@ -167,9 +167,9 @@ el log normal sigue llegando igual, solo sin esa frase extra.
 | Comando | Descripción |
 |---|---|
 | `/addfeed` | 🔒 Inicia el asistente para añadir un feed al chat actual (o al conectado vía `/connect`) |
-| `/myfeeds` | Lista los feeds del chat con botones para pausar/eliminar |
+| `/myfeeds` | Lista los feeds del chat con botones para pausar/cambiar estilo/eliminar |
 | `/setinterval <id> <min>` | 🔒 Cambia cada cuánto se revisa un feed |
-| `/setstyle <id> <bitbread\|texto>` | 🔒 Cambia el formato de publicación |
+| `/setstyle <id> <bitbread\|texto\|social>` | 🔒 Cambia el formato de publicación. `social` es para fuentes de X/Twitter: muestra solo el texto del post una vez (sin repetir título+descripción) |
 | `/setrhash <id> <rhash\|none>` | 🔒 Plantilla de Instant View del feed |
 | `/settranslate <id> <on\|off>` | 🔒 Traduce título/descripción con IA antes de publicar (requiere `GROQ_API_KEY`) |
 | `/rmfeed <id>` | 🔒 Elimina un feed |

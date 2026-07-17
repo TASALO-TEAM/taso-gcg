@@ -19,6 +19,7 @@ from telegram.ext import (
 
 from core.database import db
 from utils.decorators import user_admin, group_only
+from modules.rss.parser import RSSParser
 from modules.rss.resolver import RSSResolver
 from modules.rss.monitor import RSSMonitor
 from modules.connection import get_connected_chat_id
@@ -28,6 +29,13 @@ __mod_name__ = "RSS"
 WAITING_URL = 1
 WAITING_STYLE = 2
 CB_PREFIX = "rss:"
+
+ESTILOS_VALIDOS = ("bitbread", "texto", "social")
+ESTILOS_LABELS = {
+    "bitbread": "📸 BitBread (foto/video)",
+    "texto": "📝 Solo texto",
+    "social": "🐦 X/Twitter (sin repetir texto)",
+}
 
 _monitor: RSSMonitor | None = None
 
@@ -76,12 +84,25 @@ async def addfeed_url(update: Update, context: ContextTypes.DEFAULT_TYPE):
     context.user_data["rss_url_original"] = url
     context.user_data["rss_titulo"] = titulo
 
-    teclado = InlineKeyboardMarkup([[
-        InlineKeyboardButton("📸 Estilo BitBread (foto/video)", callback_data=f"{CB_PREFIX}style:bitbread"),
-        InlineKeyboardButton("📝 Solo texto", callback_data=f"{CB_PREFIX}style:texto"),
-    ]])
+    es_social = RSSParser.is_social_source(resolved_url) or RSSParser.is_social_source(url)
+
+    # Si es X/Twitter (o un espejo Nitter), la opción "social" va primero
+    # porque es la recomendada: en estas fuentes el título y la descripción
+    # suelen traer el mismo texto del post, y ese estilo evita repetirlo.
+    orden = ("social", "bitbread", "texto") if es_social else ("bitbread", "texto", "social")
+    botones = [
+        InlineKeyboardButton(ESTILOS_LABELS[estilo], callback_data=f"{CB_PREFIX}style:{estilo}")
+        for estilo in orden
+    ]
+    teclado = InlineKeyboardMarkup([[botones[0]], [botones[1]], [botones[2]]])
+
+    aviso_extra = (
+        "\n🐦 Parece una fuente de X/Twitter — te recomiendo el estilo "
+        "<b>X/Twitter (sin repetir texto)</b>."
+        if es_social else ""
+    )
     await aviso.edit_text(
-        f"✅ Encontrado: <b>{titulo}</b>\n¿Qué estilo de publicación prefieres?",
+        f"✅ Encontrado: <b>{titulo}</b>\n¿Qué estilo de publicación prefieres?{aviso_extra}",
         parse_mode=ParseMode.HTML, reply_markup=teclado,
     )
     return WAITING_STYLE
@@ -135,9 +156,34 @@ async def myfeeds_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 "⏸️ Pausar" if f["activo"] else "▶️ Reanudar",
                 callback_data=f"{CB_PREFIX}toggle:{f['id']}",
             ),
+            InlineKeyboardButton("🎨 Estilo", callback_data=f"{CB_PREFIX}smenu:{f['id']}"),
             InlineKeyboardButton("🗑️ Eliminar", callback_data=f"{CB_PREFIX}del:{f['id']}"),
         ]])
         await update.effective_message.reply_text(texto, parse_mode=ParseMode.HTML, reply_markup=botones)
+
+
+async def _on_style_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Botón '🎨 Estilo' de /myfeeds: abre el selector para cambiar el estilo
+    de un feed ya creado, sin tener que eliminarlo y añadirlo de nuevo."""
+    query = update.callback_query
+    await query.answer()
+    feed_id = int(query.data.replace(f"{CB_PREFIX}smenu:", ""))
+    botones = InlineKeyboardMarkup([
+        [InlineKeyboardButton(ESTILOS_LABELS[estilo], callback_data=f"{CB_PREFIX}sset:{feed_id}:{estilo}")]
+        for estilo in ESTILOS_VALIDOS
+    ])
+    await query.edit_message_text("Elige el nuevo estilo para este feed:", reply_markup=botones)
+
+
+async def _on_set_style(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    await query.answer()
+    _, feed_id, estilo = query.data.replace(CB_PREFIX, "").split(":")
+    await db.execute("UPDATE feeds SET estilo = ? WHERE id = ?", (estilo, int(feed_id)))
+    await query.edit_message_text(
+        f"✅ Estilo actualizado a <b>{ESTILOS_LABELS[estilo]}</b>. Usa /myfeeds para verlo.",
+        parse_mode=ParseMode.HTML,
+    )
 
 
 async def _on_toggle_or_delete(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -170,8 +216,8 @@ async def setinterval_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 async def setstyle_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if len(context.args or []) < 2 or context.args[0].isdigit() is False or context.args[1] not in ("bitbread", "texto"):
-        await update.effective_message.reply_text("Uso: /setstyle <id_feed> <bitbread|texto>")
+    if len(context.args or []) < 2 or context.args[0].isdigit() is False or context.args[1] not in ESTILOS_VALIDOS:
+        await update.effective_message.reply_text("Uso: /setstyle <id_feed> <bitbread|texto|social>")
         return
     feed_id = int(context.args[0])
     await db.execute("UPDATE feeds SET estilo = ? WHERE id = ?", (context.args[1], feed_id))
@@ -245,6 +291,8 @@ def register(application: Application, sudo_users):
     application.add_handler(
         CallbackQueryHandler(_on_toggle_or_delete, pattern=f"^{CB_PREFIX}(toggle|del):")
     )
+    application.add_handler(CallbackQueryHandler(_on_style_menu, pattern=f"^{CB_PREFIX}smenu:"))
+    application.add_handler(CallbackQueryHandler(_on_set_style, pattern=f"^{CB_PREFIX}sset:"))
 
     scheduler = AsyncIOScheduler()
     scheduler.add_job(_monitor.check_feeds, IntervalTrigger(seconds=60), id="rss_monitor", max_instances=1)

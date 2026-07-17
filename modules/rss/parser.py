@@ -97,6 +97,30 @@ class RSSParser:
                 return parts[-1]
         return match.group(1) if match else None
 
+    # --- Fuentes tipo "post" (X/Twitter vía espejo Nitter): en estas el título
+    # que trae el feed casi siempre ES el cuerpo del tuit (a veces truncado),
+    # igual que la descripción — de ahí el texto duplicado al usar la plantilla
+    # normal (título + descripción). Este método reutiliza la misma detección
+    # de _get_twitter_username para sugerir/activar el estilo "social" (ver
+    # monitor.py) en vez de repetir el texto dos veces.
+    _NITTER_MIRROR_HOSTS = (
+        "xcancel.com", "twiiit.com", "lightbrd.com", "nuku.trabun.org",
+    )
+
+    @classmethod
+    def is_social_source(cls, url: str) -> bool:
+        """True si la URL es de X/Twitter directo o de un espejo Nitter
+        (instancia con 'nitter' en el host, o uno de los alias conocidos sin
+        ese nombre). Se usa en /addfeed para sugerir el estilo 'social'."""
+        if not url:
+            return False
+        host = urlparse(url).netloc.lower()
+        if not host:
+            return False
+        if "twitter.com" in host or "x.com" in host or "nitter" in host:
+            return True
+        return any(alias in host for alias in cls._NITTER_MIRROR_HOSTS)
+
     @staticmethod
     def _clean_html(raw_html):
         if not raw_html:
