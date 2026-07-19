@@ -23,6 +23,21 @@ SYSTEM_PROMPT = (
 )
 
 
+# Tope defensivo antes de mandar a traducir: los hilos de Twitter/Nitter son
+# la fuente más probable de descripciones desproporcionadamente largas (un
+# hilo completo o una cita repetida), que podrían empujar la petición fuera
+# del límite de contexto de Groq (o simplemente son más texto del que tiene
+# sentido traducir para un post). No afecta el texto que se envía al canal
+# (eso lo trunca aparte utils.common.truncate_text sobre el mensaje final).
+MAX_CHARS_A_TRADUCIR = 3000
+
+
+def _cap(texto: str, limite: int = MAX_CHARS_A_TRADUCIR) -> str:
+    if not texto or len(texto) <= limite:
+        return texto
+    return texto[:limite].rstrip() + "..."
+
+
 async def traducir_entry(entry: dict) -> dict:
     """Devuelve una copia de `entry` con title/description traducidos.
 
@@ -30,7 +45,10 @@ async def traducir_entry(entry: dict) -> dict:
     devuelve el `entry` original intacto (fallback silencioso).
     """
     user_prompt = json.dumps(
-        {"title": entry.get("title", ""), "description": entry.get("description", "")},
+        {
+            "title": _cap(entry.get("title", "")),
+            "description": _cap(entry.get("description", "")),
+        },
         ensure_ascii=False,
     )
 

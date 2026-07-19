@@ -23,13 +23,55 @@ def clean_html(raw_html: str) -> str:
     return text.strip()
 
 
+# Etiquetas HTML que este bot soporta al enviar a Telegram (mismo whitelist
+# que clean_html de este archivo y _clean_html de modules/rss/parser.py).
+_TAGS_SOPORTADAS = ("b", "strong", "i", "em", "u", "s", "a", "code", "pre")
+
+# Detecta una etiqueta sin terminar al final del string cortado, ej.
+# '...<a href="https://ejemplo' (le falta el '>' de cierre de la apertura).
+_TAG_SIN_TERMINAR_RE = re.compile(r"<[^>]*$")
+
+# Detecta CUALQUIER apertura/cierre de las etiquetas soportadas, para
+# reconstruir con una pila cuáles quedaron abiertas tras el corte.
+_TAG_APERTURA_CIERRE_RE = re.compile(
+    r"<(/?)(" + "|".join(_TAGS_SOPORTADAS) + r")\b[^>]*>", re.IGNORECASE
+)
+
+
 def truncate_text(text: str, limit: int = 1000) -> str:
-    """Corta el texto asegurando no romper etiquetas HTML abiertas al final."""
+    """Corta el texto a `limit` caracteres como máximo garantizando HTML
+    válido para Telegram: nunca deja una etiqueta a medio abrir (ej.
+    '<a href="ht') y cierra en orden inverso cualquiera de las etiquetas
+    soportadas (b, strong, i, em, u, s, a, code, pre) que haya quedado
+    abierta por el corte — no solo <a>, a diferencia de la versión anterior.
+    """
     if len(text) <= limit:
         return text
-    cut_text = text[:limit - 3] + "..."
-    if cut_text.count("<a") != cut_text.count("</a>"):
-        cut_text += "</a>"
+
+    cut_text = text[:limit - 3]
+
+    # Si el corte cayó DENTRO de una etiqueta sin terminar, retroceder hasta
+    # justo antes de ella — un fragmento de tag roto no sirve de nada.
+    sin_terminar = _TAG_SIN_TERMINAR_RE.search(cut_text)
+    if sin_terminar:
+        cut_text = cut_text[:sin_terminar.start()]
+
+    cut_text += "..."
+
+    # Reconstruir con una pila (LIFO) qué etiquetas quedaron abiertas tras
+    # el corte, y cerrarlas todas en orden inverso.
+    pila = []
+    for m in _TAG_APERTURA_CIERRE_RE.finditer(cut_text):
+        es_cierre, tag = m.group(1), m.group(2).lower()
+        if es_cierre:
+            if pila and pila[-1] == tag:
+                pila.pop()
+        else:
+            pila.append(tag)
+
+    for tag in reversed(pila):
+        cut_text += f"</{tag}>"
+
     return cut_text
 
 

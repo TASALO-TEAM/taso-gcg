@@ -106,7 +106,15 @@ async def ask_groq(
                     "warning",
                 )
                 continue
-            log(f"Groq HTTP error {status}: {e}", "warning")
+            try:
+                body = e.response.text[:500] if e.response is not None else ""
+            except Exception:
+                body = ""
+            log(
+                f"Groq HTTP error {status} (key ...{api_key[-4:] if api_key else '????'}): "
+                f"{body or str(e)}",
+                "warning",
+            )
             return None
         except httpx.TimeoutException:
             log("Groq: tiempo de espera agotado", "warning")

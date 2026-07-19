@@ -64,6 +64,45 @@ def test_truncate_text_corta_y_cierra_enlace():
     assert resultado.count("<a") <= resultado.count("</a>")
 
 
+def test_truncate_text_no_corta_a_mitad_de_etiqueta():
+    """Bug real visto en producción: el corte caía dentro de un <a href="...
+    sin llegar al '>' de cierre de la apertura, produciendo HTML roto que
+    Telegram rechazaba con 'Can't parse entities: unclosed start tag'."""
+    texto = "Texto de la noticia " + "x" * 20 + '<a href="https://ejemplo.com/articulo-largo">Fuente</a>'
+    # limit cae justo a mitad del atributo href, antes del '>' de apertura
+    resultado = truncate_text(texto, limit=45)
+    # No debe quedar un '<' sin su '>' correspondiente
+    assert resultado.count("<") == resultado.count(">")
+    # No debe haber un fragmento de tag roto tipo '<a href="https'
+    assert '<a href="https' not in resultado or resultado.rstrip("</a>").endswith(">")
+
+
+def test_truncate_text_cierra_etiquetas_no_solo_a():
+    """La versión anterior solo rebalanceaba <a>; <b>, <i>, etc. quedaban
+    rotas si el corte caía después de su apertura."""
+    texto = "Intro " + "y" * 40 + "<b>texto en negrita que se corta a mitad</b>"
+    resultado = truncate_text(texto, limit=50)
+    assert resultado.count("<b>") == resultado.count("</b>")
+
+
+def test_truncate_text_cierra_etiquetas_anidadas_en_orden_inverso():
+    texto = "z" * 30 + "<b>negrita <i>e itálica que se corta</i></b>"
+    resultado = truncate_text(texto, limit=40)
+    # Deben quedar balanceadas ambas, y en el orden correcto (LIFO): si <i>
+    # se abrió después de <b>, debe cerrarse antes.
+    assert resultado.count("<b>") == resultado.count("</b>")
+    assert resultado.count("<i>") == resultado.count("</i>")
+    if "<i>" in resultado and "</b>" in resultado:
+        assert resultado.rindex("</i>") < resultado.rindex("</b>")
+
+
+def test_truncate_text_texto_sin_html_no_cambia_de_comportamiento():
+    texto = "Solo texto plano sin ninguna etiqueta HTML de por medio, " * 3
+    resultado = truncate_text(texto, limit=50)
+    assert len(resultado) <= 50
+    assert resultado.endswith("...")
+
+
 # --- extract_target_user / resolve_username ---
 # La Bot API de Telegram solo manda el user_id embebido en las menciones
 # `text_mention` (nombre visible sin @username propio). Para un `@usuario`
