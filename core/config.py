@@ -53,10 +53,10 @@ GROQ_MODEL = os.getenv("GROQ_MODEL", "openai/gpt-oss-120b")
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DATA_DIR = os.path.join(BASE_DIR, "data")
 DB_PATH = os.path.join(DATA_DIR, "taso_gcg.db")
-LOGS_DIR = os.path.join(DATA_DIR, "logs")
+# Los logs viven en <repo>/logs/ (ver utils/logger.py), no en data/ — ese
+# módulo gestiona su propio directorio y rotación.
 
 os.makedirs(DATA_DIR, exist_ok=True)
-os.makedirs(LOGS_DIR, exist_ok=True)
 
 # --- Carga de módulos ---
 # Si LOAD está vacío, se cargan todos los módulos de modules/ excepto los de NO_LOAD.
