@@ -14,6 +14,7 @@ import pytest
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import modules.rss.monitor as monitor  # noqa: E402
+import modules.rss.iv_generator as iv_generator  # noqa: E402
 from modules.rss.monitor import RSSMonitor  # noqa: E402
 
 
@@ -67,6 +68,7 @@ def bot_falso():
 @pytest.mark.asyncio
 async def test_segundo_post_con_mismo_link_externo_se_omite(monkeypatch, test_db, bot_falso):
     monkeypatch.setattr(monitor, "db", test_db)
+    monkeypatch.setattr(iv_generator, "db", test_db)  # create_instant_view_link importa su propio db
     feed = await _crear_feed(test_db)
 
     entrada_completa = _entry(
@@ -104,6 +106,7 @@ async def test_posts_sin_link_externo_no_se_bloquean_entre_si(monkeypatch, test_
     fuentes que no son 'social') no deben tratarse como duplicados entre sí
     solo porque ambos tienen external_link=None."""
     monkeypatch.setattr(monitor, "db", test_db)
+    monkeypatch.setattr(iv_generator, "db", test_db)  # create_instant_view_link importa su propio db
     feed = await _crear_feed(test_db)
 
     entrada1 = _entry("hash1", "Noticia A completamente distinta", "https://nitter.net/x/status/1", None)
@@ -122,6 +125,7 @@ async def test_link_externo_distinto_no_se_omite(monkeypatch, test_db, bot_falso
     """Dos posts con títulos distintos y links externos distintos (dos
     noticias reales, no la misma repetida) deben mandarse ambos."""
     monkeypatch.setattr(monitor, "db", test_db)
+    monkeypatch.setattr(iv_generator, "db", test_db)  # create_instant_view_link importa su propio db
     feed = await _crear_feed(test_db)
 
     entrada1 = _entry("hash1", "Noticia sobre LG", "https://nitter.net/x/status/1",
