@@ -134,41 +134,50 @@ class RSSMonitor:
         # _es_duplicado_por_titulo). Ventana acotada a propósito: no tiene
         # sentido comparar una noticia de hoy contra una de hace un mes.
         recientes = await db.fetchall(
-            "SELECT titulo_normalizado FROM feed_historial "
-            "WHERE feed_id = ? AND titulo_normalizado IS NOT NULL "
+            "SELECT titulo_normalizado, link_externo_normalizado FROM feed_historial "
+            "WHERE feed_id = ? AND (titulo_normalizado IS NOT NULL OR link_externo_normalizado IS NOT NULL) "
             "AND enviado_en >= datetime('now', ?)",
             (feed["id"], f"-{FUZZY_WINDOW_HOURS} hours"),
         )
-        titulos_recientes = [r["titulo_normalizado"] for r in recientes]
+        titulos_recientes = [r["titulo_normalizado"] for r in recientes if r["titulo_normalizado"]]
+        links_externos_recientes = {
+            r["link_externo_normalizado"] for r in recientes if r["link_externo_normalizado"]
+        }
 
         candidatas = [e for e in reversed(parsed["entries"]) if e["hash"] not in vistos]
 
         nuevas = []
         for entry in candidatas:
             titulo_norm = RSSParser.normalize_title(entry["title"])
-            if self._es_duplicado_por_titulo(titulo_norm, titulos_recientes):
-                log(f"🔁 Duplicado por similitud de título, omitido: {entry['title'][:60]}", "debug")
+            link_externo = entry.get("external_link")
+            es_dup_titulo = self._es_duplicado_por_titulo(titulo_norm, titulos_recientes)
+            es_dup_link = bool(link_externo) and link_externo in links_externos_recientes
+            if es_dup_titulo or es_dup_link:
+                motivo = "similitud de título" if es_dup_titulo else "mismo artículo enlazado (formato de post distinto)"
+                log(f"🔁 Duplicado por {motivo}, omitido: {entry['title'][:60]}", "debug")
                 # Se registra igual (sin enviar) para no re-evaluar esta misma
                 # entrada en cada ciclo mientras siga apareciendo en el feed.
                 await db.execute(
-                    "INSERT OR IGNORE INTO feed_historial(feed_id, entry_hash, titulo_normalizado) "
-                    "VALUES (?,?,?)",
-                    (feed["id"], entry["hash"], titulo_norm),
+                    "INSERT OR IGNORE INTO feed_historial(feed_id, entry_hash, titulo_normalizado, link_externo_normalizado) "
+                    "VALUES (?,?,?,?)",
+                    (feed["id"], entry["hash"], titulo_norm, link_externo),
                 )
                 continue
-            nuevas.append((entry, titulo_norm))
+            nuevas.append((entry, titulo_norm, link_externo))
             titulos_recientes.append(titulo_norm)  # evita duplicados dentro del mismo lote
+            if link_externo:
+                links_externos_recientes.add(link_externo)
 
         enviados = 0
-        for entry, titulo_norm in nuevas:
+        for entry, titulo_norm, link_externo in nuevas:
             if feed["traducir"]:
                 entry = await traducir_entry(entry)
             ok = await self._send_entry(feed, entry)
             if ok:
                 await db.execute(
-                    "INSERT OR IGNORE INTO feed_historial(feed_id, entry_hash, titulo_normalizado) "
-                    "VALUES (?,?,?)",
-                    (feed["id"], entry["hash"], titulo_norm),
+                    "INSERT OR IGNORE INTO feed_historial(feed_id, entry_hash, titulo_normalizado, link_externo_normalizado) "
+                    "VALUES (?,?,?,?)",
+                    (feed["id"], entry["hash"], titulo_norm, link_externo),
                 )
                 await db.execute(
                     "INSERT INTO feed_stats(feed_id, enviados) VALUES (?, 1) "

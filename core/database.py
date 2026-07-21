@@ -178,6 +178,7 @@ CREATE TABLE IF NOT EXISTS feed_historial (
     feed_id INTEGER NOT NULL REFERENCES feeds(id) ON DELETE CASCADE,
     entry_hash TEXT NOT NULL,
     titulo_normalizado TEXT,
+    link_externo_normalizado TEXT,
     enviado_en TEXT DEFAULT (datetime('now')),
     PRIMARY KEY (feed_id, entry_hash)
 );
@@ -254,6 +255,7 @@ class Database:
         migraciones = [
             ("feeds", "traducir", "INTEGER NOT NULL DEFAULT 0"),
             ("feed_historial", "titulo_normalizado", "TEXT"),
+            ("feed_historial", "link_externo_normalizado", "TEXT"),
         ]
         columnas_por_tabla = {}
         for tabla in {t for t, _, _ in migraciones}:

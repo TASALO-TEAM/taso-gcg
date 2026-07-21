@@ -9,6 +9,7 @@ import feedparser
 import re
 import asyncio
 import hashlib
+import html
 import random
 from urllib.parse import urlparse, parse_qsl, urlencode
 from curl_cffi.requests import AsyncSession
@@ -125,9 +126,45 @@ class RSSParser:
     def _clean_html(raw_html):
         if not raw_html:
             return ""
-        text = raw_html.replace("<br>", "\n").replace("<p>", "").replace("</p>", "\n\n")
+        # Decodificar entidades ANTES de recortar tags: algunos espejos Nitter
+        # doble-escapan entidades (ej. '&amp;apos;' en el XML crudo), y
+        # feedparser solo decodifica un nivel, dejando '&apos;' literal en el
+        # texto final si no se hace esta segunda pasada.
+        text = html.unescape(raw_html)
+        text = text.replace("<br>", "\n").replace("<p>", "").replace("</p>", "\n\n")
         text = re.sub(r"<(?!\/?(b|strong|i|em|u|s|a|code|pre)\b)[^>]*>", "", text, flags=re.IGNORECASE)
         return text.strip()
+
+    # --- Fuentes 'social' (X/Twitter vía Nitter): el mismo artículo a veces se
+    # publica dos veces — un post con el comentario completo, y después un
+    # post "tarjeta" que es solo el link desnudo al artículo. El título de
+    # ambos posts es tan distinto que el fuzzy-match de monitor.py
+    # (_es_duplicado_por_titulo) no los detecta como duplicados. Este método
+    # saca el link real al artículo externo (no el permalink de Nitter/X) para
+    # que monitor.py compare TAMBIÉN esto, no solo el título.
+    _EXTERNAL_LINK_EXCLUDED_HOSTS = ("twitter.com", "x.com")
+
+    @classmethod
+    def _extract_external_link(cls, entry) -> str | None:
+        own_domain = urlparse(entry.get("link", "")).netloc.lower()
+        content = entry.get("summary", "") or entry.get("description", "") or ""
+        if "content" in entry:
+            for c in entry.content:
+                content += c.value
+        if not content:
+            return None
+        try:
+            soup = BeautifulSoup(content, "lxml")
+            for a in soup.find_all("a", href=True):
+                href_domain = urlparse(a["href"]).netloc.lower()
+                if not href_domain or href_domain == own_domain:
+                    continue
+                if "nitter" in href_domain or href_domain in cls._EXTERNAL_LINK_EXCLUDED_HOSTS:
+                    continue
+                return cls._normalize_link(a["href"])
+        except Exception:
+            pass
+        return None
 
     @staticmethod
     def _extract_image(entry):
@@ -300,6 +337,7 @@ class RSSParser:
                     "description": cls._clean_html(entry.get("summary", entry.get("description", ""))),
                     "image": cls._extract_image(entry),
                     "video": cls._extract_video(entry),
+                    "external_link": cls._extract_external_link(entry),
                     "hash": cls._get_hash(entry),
                     "source": feed.feed.get("title", "RSS Source"),
                 })
