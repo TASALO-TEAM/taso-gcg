@@ -118,12 +118,14 @@ async def addfeed_style(update: Update, context: ContextTypes.DEFAULT_TYPE):
     url_original = context.user_data.pop("rss_url_original")
     titulo = context.user_data.pop("rss_titulo")
 
+    numero = await db.siguiente_numero_local(chat_row["id"])
     await db.execute(
-        "INSERT INTO feeds(chat_id, url, url_original, titulo, estilo) VALUES (?,?,?,?,?)",
-        (chat_row["id"], url, url_original, titulo, estilo),
+        "INSERT INTO feeds(chat_id, numero_local, url, url_original, titulo, estilo) VALUES (?,?,?,?,?,?)",
+        (chat_row["id"], numero, url, url_original, titulo, estilo),
     )
     await query.edit_message_text(
-        f"🎉 Feed «{titulo}» añadido en estilo <b>{estilo}</b>. Revisa /myfeeds para ajustarlo.",
+        f"🎉 Feed «{titulo}» añadido como <b>#{numero}</b>, estilo <b>{estilo}</b>. "
+        f"Revisa /myfeeds para ajustarlo.",
         parse_mode=ParseMode.HTML,
     )
     return ConversationHandler.END
@@ -141,14 +143,14 @@ async def myfeeds_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not chat_row:
         await update.effective_message.reply_text("Usa esto dentro del grupo/canal, o conéctate con /connect.")
         return
-    feeds = await db.fetchall("SELECT * FROM feeds WHERE chat_id = ? ORDER BY id", (chat_row["id"],))
+    feeds = await db.fetchall("SELECT * FROM feeds WHERE chat_id = ? ORDER BY numero_local", (chat_row["id"],))
     if not feeds:
         await update.effective_message.reply_text("No hay feeds configurados aquí. Usa /addfeed para crear uno.")
         return
     for f in feeds:
         estado = "🟢 activo" if f["activo"] else "🔴 pausado"
         texto = (
-            f"📰 <b>{f['titulo'] or f['url']}</b> (#{f['id']})\n"
+            f"📰 <b>{f['titulo'] or f['url']}</b> (#{f['numero_local']})\n"
             f"Estilo: {f['estilo']} | Intervalo: {f['intervalo_min']}m | {estado}"
         )
         botones = InlineKeyboardMarkup([[
@@ -203,66 +205,106 @@ async def _on_toggle_or_delete(update: Update, context: ContextTypes.DEFAULT_TYP
         await query.edit_message_text("🗑️ Feed eliminado.")
 
 
+async def _resolver_feed_por_numero(update: Update, context: ContextTypes.DEFAULT_TYPE, numero_local: int):
+    """Traduce el #numero_local que teclea el admin (propio de su chat) al
+    feed real, verificando de paso que ese feed pertenezca al chat actual/
+    conectado — así un admin no puede tocar por accidente (ni adivinando el
+    número) un feed de otro chat. Devuelve (feed_row, mensaje_error)."""
+    chat_row = await _resolver_chat_destino(update, context)
+    if not chat_row:
+        return None, "Usa este comando dentro del grupo/canal, o conéctate primero con /connect."
+    feed = await db.get_feed_by_numero_local(chat_row["id"], numero_local)
+    if not feed:
+        return None, f"No hay ningún feed #{numero_local} en este chat. Revisa /myfeeds."
+    return feed, None
+
+
 async def setinterval_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not context.args or not context.args[0].isdigit():
-        await update.effective_message.reply_text("Uso: /setinterval <id_feed> <minutos>")
+        await update.effective_message.reply_text("Uso: /setinterval <#feed> <minutos>")
         return
     if len(context.args) < 2 or not context.args[1].isdigit():
-        await update.effective_message.reply_text("Uso: /setinterval <id_feed> <minutos>")
+        await update.effective_message.reply_text("Uso: /setinterval <#feed> <minutos>")
         return
-    feed_id, minutos = int(context.args[0]), int(context.args[1])
-    await db.execute("UPDATE feeds SET intervalo_min = ? WHERE id = ?", (minutos, feed_id))
-    await update.effective_message.reply_text(f"✅ Intervalo del feed #{feed_id}: {minutos} min")
+    numero, minutos = int(context.args[0]), int(context.args[1])
+    feed, error = await _resolver_feed_por_numero(update, context, numero)
+    if error:
+        await update.effective_message.reply_text(error)
+        return
+    await db.execute("UPDATE feeds SET intervalo_min = ? WHERE id = ?", (minutos, feed["id"]))
+    await update.effective_message.reply_text(f"✅ Intervalo del feed #{numero}: {minutos} min")
 
 
 async def setstyle_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if len(context.args or []) < 2 or context.args[0].isdigit() is False or context.args[1] not in ESTILOS_VALIDOS:
-        await update.effective_message.reply_text("Uso: /setstyle <id_feed> <bitbread|texto|social>")
+        await update.effective_message.reply_text("Uso: /setstyle <#feed> <bitbread|texto|social>")
         return
-    feed_id = int(context.args[0])
-    await db.execute("UPDATE feeds SET estilo = ? WHERE id = ?", (context.args[1], feed_id))
-    await update.effective_message.reply_text(f"✅ Estilo del feed #{feed_id}: {context.args[1]}")
+    numero = int(context.args[0])
+    feed, error = await _resolver_feed_por_numero(update, context, numero)
+    if error:
+        await update.effective_message.reply_text(error)
+        return
+    await db.execute("UPDATE feeds SET estilo = ? WHERE id = ?", (context.args[1], feed["id"]))
+    await update.effective_message.reply_text(f"✅ Estilo del feed #{numero}: {context.args[1]}")
 
 
 async def settranslate_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if len(context.args or []) < 2 or context.args[0].isdigit() is False or context.args[1] not in ("on", "off"):
         await update.effective_message.reply_text(
-            "Uso: /settranslate <id_feed> <on|off>\n"
+            "Uso: /settranslate <#feed> <on|off>\n"
             "Traduce título y descripción con IA antes de publicar (requiere GROQ_API_KEY)."
         )
         return
-    feed_id, valor = int(context.args[0]), 1 if context.args[1] == "on" else 0
-    await db.execute("UPDATE feeds SET traducir = ? WHERE id = ?", (valor, feed_id))
+    numero, valor = int(context.args[0]), 1 if context.args[1] == "on" else 0
+    feed, error = await _resolver_feed_por_numero(update, context, numero)
+    if error:
+        await update.effective_message.reply_text(error)
+        return
+    await db.execute("UPDATE feeds SET traducir = ? WHERE id = ?", (valor, feed["id"]))
     estado = "activada ✅" if valor else "desactivada"
-    await update.effective_message.reply_text(f"Traducción del feed #{feed_id}: {estado}")
+    await update.effective_message.reply_text(f"Traducción del feed #{numero}: {estado}")
 
 
 async def setrhash_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if len(context.args or []) < 2 or not context.args[0].isdigit():
         await update.effective_message.reply_text(
-            "Uso: /setrhash <id_feed> <rhash|none>\n"
+            "Uso: /setrhash <#feed> <rhash|none>\n"
             "El rhash es el código de la plantilla de Instant View (t.me/iv?...&rhash=XXXX)."
         )
         return
-    feed_id, rhash = int(context.args[0]), context.args[1]
+    numero, rhash = int(context.args[0]), context.args[1]
+    feed, error = await _resolver_feed_por_numero(update, context, numero)
+    if error:
+        await update.effective_message.reply_text(error)
+        return
     valor = None if rhash.lower() == "none" else rhash
-    await db.execute("UPDATE feeds SET rhash = ? WHERE id = ?", (valor, feed_id))
-    await update.effective_message.reply_text(f"✅ rhash del feed #{feed_id} actualizado.")
+    await db.execute("UPDATE feeds SET rhash = ? WHERE id = ?", (valor, feed["id"]))
+    await update.effective_message.reply_text(f"✅ rhash del feed #{numero} actualizado.")
 
 
 async def rmfeed_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not context.args or not context.args[0].isdigit():
-        await update.effective_message.reply_text("Uso: /rmfeed <id_feed>")
+        await update.effective_message.reply_text("Uso: /rmfeed <#feed>")
         return
-    await db.execute("DELETE FROM feeds WHERE id = ?", (int(context.args[0]),))
-    await update.effective_message.reply_text("🗑️ Feed eliminado.")
+    numero = int(context.args[0])
+    feed, error = await _resolver_feed_por_numero(update, context, numero)
+    if error:
+        await update.effective_message.reply_text(error)
+        return
+    await db.execute("DELETE FROM feeds WHERE id = ?", (feed["id"],))
+    await update.effective_message.reply_text(f"🗑️ Feed #{numero} eliminado.")
 
 
 async def testfeed_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not context.args or not context.args[0].isdigit():
-        await update.effective_message.reply_text("Uso: /testfeed <id_feed>")
+        await update.effective_message.reply_text("Uso: /testfeed <#feed>")
         return
-    ok, mensaje = await _monitor.force_check(int(context.args[0]))
+    numero = int(context.args[0])
+    feed, error = await _resolver_feed_por_numero(update, context, numero)
+    if error:
+        await update.effective_message.reply_text(error)
+        return
+    ok, mensaje = await _monitor.force_check(feed["id"])
     await update.effective_message.reply_text(("✅ " if ok else "⚠️ ") + mensaje)
 
 

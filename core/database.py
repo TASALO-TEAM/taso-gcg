@@ -160,6 +160,7 @@ CREATE TABLE IF NOT EXISTS disabled_commands (
 CREATE TABLE IF NOT EXISTS feeds (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     chat_id INTEGER NOT NULL REFERENCES chats(id) ON DELETE CASCADE,
+    numero_local INTEGER,
     url TEXT NOT NULL,
     url_original TEXT,
     titulo TEXT,
@@ -173,6 +174,11 @@ CREATE TABLE IF NOT EXISTS feeds (
     creado_en TEXT DEFAULT (datetime('now'))
 );
 CREATE INDEX IF NOT EXISTS idx_feeds_activo ON feeds(activo);
+-- numero_local: contador visible propio de cada chat (1,2,3... reutilizando
+-- huecos), independiente del id interno (PK real, usado en FKs de
+-- feed_historial/feed_stats). El índice único se crea en _migrate(), no
+-- aquí, porque en una DB ya existente la columna todavía no existe cuando
+-- corre este script. Ver docs/plans/2026-07-21-admin-ux-feeds-connection.md
 
 CREATE TABLE IF NOT EXISTS feed_historial (
     feed_id INTEGER NOT NULL REFERENCES feeds(id) ON DELETE CASCADE,
@@ -202,6 +208,17 @@ CREATE TABLE IF NOT EXISTS connections (
     user_id INTEGER PRIMARY KEY,
     tg_chat_id INTEGER NOT NULL,
     conectado_en TEXT DEFAULT (datetime('now'))
+);
+
+-- === Historial de conexiones: chats a los que el usuario ya se conectó
+-- alguna vez, para poder listarlos en /connection y cambiar entre ellos
+-- sin volver a teclear el id/@usuario cada vez ===
+CREATE TABLE IF NOT EXISTS connection_history (
+    user_id INTEGER NOT NULL,
+    tg_chat_id INTEGER NOT NULL,
+    titulo TEXT,
+    ultimo_uso TEXT DEFAULT (datetime('now')),
+    PRIMARY KEY (user_id, tg_chat_id)
 );
 
 -- === Caché local de usuarios vistos (id, username, nombre...) ===
@@ -254,6 +271,7 @@ class Database:
         de correr en cada arranque, tanto en una DB nueva como en la del VPS."""
         migraciones = [
             ("feeds", "traducir", "INTEGER NOT NULL DEFAULT 0"),
+            ("feeds", "numero_local", "INTEGER"),
             ("feed_historial", "titulo_normalizado", "TEXT"),
             ("feed_historial", "link_externo_normalizado", "TEXT"),
         ]
@@ -267,9 +285,35 @@ class Database:
             try:
                 await self._conn.execute(f"ALTER TABLE {tabla} ADD COLUMN {columna} {tipo}")
                 log(f"🔧 Migración: agregada columna {tabla}.{columna}")
+                if tabla == "feeds" and columna == "numero_local":
+                    await self._backfill_numero_local()
             except aiosqlite.OperationalError:
                 pass  # ya existía (carrera improbable, pero por si acaso)
+        # El índice único va aquí (no en SCHEMA_SQL) porque en una DB vieja
+        # la columna numero_local recién se acaba de agregar arriba.
+        await self._conn.execute(
+            "CREATE UNIQUE INDEX IF NOT EXISTS idx_feeds_chat_numero "
+            "ON feeds(chat_id, numero_local)"
+        )
         await self._conn.commit()
+
+    async def _backfill_numero_local(self):
+        """Asigna numero_local 1,2,3... a los feeds ya existentes, por chat,
+        respetando el orden actual (id asc). Solo corre una vez, justo al
+        agregar la columna en una DB que no la tenía."""
+        cur = await self._conn.execute(
+            "SELECT id, chat_id FROM feeds ORDER BY chat_id, id"
+        )
+        filas = await cur.fetchall()
+        contador_por_chat = {}
+        for feed_id, chat_id in filas:
+            contador_por_chat[chat_id] = contador_por_chat.get(chat_id, 0) + 1
+            await self._conn.execute(
+                "UPDATE feeds SET numero_local = ? WHERE id = ?",
+                (contador_por_chat[chat_id], feed_id),
+            )
+        if filas:
+            log(f"🔧 Migración: numero_local asignado a {len(filas)} feed(s) existentes")
 
     async def _set_schema_version(self):
         await self._conn.execute(
@@ -415,6 +459,32 @@ class Database:
         universal = await self.fetchone("SELECT rhash FROM iv_templates WHERE dominio = '_universal'")
         return universal["rhash"] if universal else None
 
+    # --- RSS: numero_local (numeración de feeds por chat, rellenando huecos) ---
+    async def siguiente_numero_local(self, chat_id: int) -> int:
+        """Primer numero_local libre para este chat (rellena huecos dejados
+        por feeds eliminados en vez de crecer sin límite)."""
+        row = await self.fetchone(
+            """
+            SELECT MIN(t1.numero_local + 1) AS libre
+            FROM feeds t1
+            WHERE t1.chat_id = ?
+              AND NOT EXISTS (
+                  SELECT 1 FROM feeds t2
+                  WHERE t2.chat_id = t1.chat_id AND t2.numero_local = t1.numero_local + 1
+              )
+            """,
+            (chat_id,),
+        )
+        if row and row["libre"] is not None:
+            return row["libre"]
+        return 1  # no hay feeds todavía en este chat
+
+    async def get_feed_by_numero_local(self, chat_id: int, numero_local: int) -> dict | None:
+        return await self.fetchone(
+            "SELECT * FROM feeds WHERE chat_id = ? AND numero_local = ?",
+            (chat_id, numero_local),
+        )
+
     # --- Conexión remota (/connect) ---
     async def set_connection(self, user_id: int, tg_chat_id: int):
         await self.execute(
@@ -430,6 +500,21 @@ class Database:
 
     async def clear_connection(self, user_id: int):
         await self.execute("DELETE FROM connections WHERE user_id = ?", (user_id,))
+
+    # --- Historial de conexiones (/connection: lista de chats ya usados) ---
+    async def record_connection_history(self, user_id: int, tg_chat_id: int, titulo: str = None):
+        await self.execute(
+            "INSERT INTO connection_history(user_id, tg_chat_id, titulo) VALUES (?,?,?) "
+            "ON CONFLICT(user_id, tg_chat_id) DO UPDATE SET "
+            "titulo = excluded.titulo, ultimo_uso = datetime('now')",
+            (user_id, tg_chat_id, titulo),
+        )
+
+    async def get_connection_history(self, user_id: int) -> list[dict]:
+        return await self.fetchall(
+            "SELECT * FROM connection_history WHERE user_id = ? ORDER BY ultimo_uso DESC",
+            (user_id,),
+        )
 
     # --- Caché de usuarios (resolución de @username -> user_id) ---
     async def upsert_user(self, user) -> None:
