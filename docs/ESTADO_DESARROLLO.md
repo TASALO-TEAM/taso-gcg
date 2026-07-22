@@ -426,3 +426,40 @@ el log no mostraba nada raro. Dos bugs reales encontrados al revisar:
 `version.txt`: `0.1.9` → `0.1.10`. Verificado con `py -3 -m py_compile` sobre
 `core/database.py` y `modules/connection.py`. Pendiente: push + deploy, y confirmar con
 Ersus que `/connection` ya funciona (sobre todo si su conexión venía de antes del deploy).
+
+### Bugfix post-deploy #2 (mismo día): seguía sin responder tras v0.1.10
+
+Ersus confirmó que probaba `/connection` en el PM del bot y seguía sin pasar nada — ni
+siquiera el mensaje de "no estás conectado". El log del bot mostraba que la migración de
+`connection_history` sí había corrido bien, así que el problema no era ese.
+
+Causa raíz encontrada al revisar `bot.py`: **nunca se registró un
+`application.add_error_handler()`**. Sin eso, si un handler revienta con una excepción,
+python-telegram-bot la atrapa internamente y la loguea con SU PROPIO logger estándar
+(`telegram.ext._application`) — que no pasa por nuestro logger custom
+(`utils/logger.py` usa un logger separado `taso_gcg` con `propagate = False`) y termina
+solo en stderr/journal del servicio, invisible en `logs/taso-gcg.log`. Por eso el comando
+fallaba "en silencio" y el log de archivo no mostraba nada raro: probablemente sí estaba
+reventando, solo que en un canal que nadie estaba mirando.
+
+Corregido: `bot.py` ahora registra `on_error()` vía `add_error_handler`, que loguea el
+traceback completo con nuestro `log(..., "error")` (así sí llega a
+`logs/taso-gcg-errors.log`) y además manda un aviso corto a `LOG_CHAT_ID` si está
+configurado. Esto no arregla el bug original de `/connection` en sí — sirve para que la
+*próxima* vez que algo falle dentro de un handler, se pueda ver el traceback real en vez
+de tener que adivinar.
+
+`version.txt`: `0.1.10` → `0.1.11`.
+
+**Pendiente crítico**: esta sesión se cortó por una desconexión del conector de ejecución
+de comandos (Desktop Commander) — el cambio de `bot.py` y el bump de versión quedaron
+escritos en disco pero SIN compilar, SIN commitear y SIN pushear/desplegar. Antes de
+seguir, hace falta:
+1. `py -3 -m py_compile bot.py`
+2. `git add bot.py version.txt docs/ESTADO_DESARROLLO.md && git commit` (mensaje sugerido:
+   `fix(bot): registrar error handler global para no perder tracebacks silenciosos`)
+3. `git push`
+4. Deploy en el VPS (`git pull` + restart del servicio)
+5. Reproducir `/connection` de nuevo en el PM y mandar el log fresco — con el error
+   handler puesto, si sigue sin responder, esta vez el traceback real va a estar en
+   `logs/taso-gcg-errors.log`.

@@ -5,6 +5,7 @@ Punto de entrada único: moderación + RSS corren en el mismo proceso
 """
 
 import logging
+import traceback
 
 from telegram.ext import Application, ApplicationBuilder, ContextTypes
 
@@ -21,6 +22,7 @@ logging.getLogger("apscheduler").setLevel(logging.WARNING)
 
 
 async def post_init(application: Application):
+    application.add_error_handler(on_error)
     await db.init()
     cargados = load_all(application)
     log(f"🚀 taso-gcg v{BOT_VERSION} arrancando con {len(cargados)} módulos")
@@ -38,6 +40,26 @@ async def post_init(application: Application):
             )
         except Exception as e:
             log(f"No se pudo notificar el arranque al LOG_CHAT_ID: {e}", "warning")
+
+
+async def on_error(update, context: ContextTypes.DEFAULT_TYPE):
+    """Handler global de errores: sin esto, python-telegram-bot atrapa
+    cualquier excepción no controlada dentro de un handler y la loguea con
+    SU PROPIO logger estándar (telegram.ext._application), que no pasa por
+    nuestro logger custom (utils/logger.py tiene propagate=False) y termina
+    solo en stderr/journal del servicio — invisible en logs/taso-gcg.log.
+    Esto hacía que un comando fallara "en silencio" (el usuario no veía
+    respuesta ni error) sin dejar rastro en el archivo de log real."""
+    tb = "".join(traceback.format_exception(None, context.error, context.error.__traceback__))
+    log(f"Excepción no controlada procesando un update:\n{tb}", "error")
+    if LOG_CHAT_ID:
+        try:
+            resumen = str(context.error)[:300]
+            await context.bot.send_message(
+                LOG_CHAT_ID, f"⚠️ Error no controlado: {resumen}"
+            )
+        except Exception:
+            pass  # si ni el aviso de error se puede mandar, ya quedó en el log de archivo
 
 
 async def post_shutdown(application: Application):
