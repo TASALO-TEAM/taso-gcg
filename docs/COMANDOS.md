@@ -147,9 +147,9 @@ el log normal sigue llegando igual, solo sin esa frase extra.
 ## Conexiones (`connection.py`)
 | Comando | Descripción |
 |---|---|
-| `/connect <@usuario \| id_chat>` (en PM) | Gestiona un chat sin escribir ahí (requiere ser admin de ese chat). Acepta @usuario si el canal/grupo es público, o el ID si es privado |
-| `/connection` | Ver info del chat conectado |
-| `/disconnect` | Cierra la conexión |
+| `/connect <@usuario \| id_chat>` (en PM) | Gestiona un chat sin escribir ahí (requiere ser admin de ese chat). Acepta @usuario si el canal/grupo es público, o el ID si es privado. Cada conexión exitosa queda guardada en tu historial |
+| `/connection` | Sin argumentos: lista los chats a los que ya te conectaste antes, con botones, marcando "✅" el activo ahora mismo. `/connection <n>` o el botón: cambia a ese chat de la lista y muestra su detalle |
+| `/disconnect` | Cierra la conexión activa |
 
 ## Difusión (`broadcast.py`)
 | Comando | Descripción |
@@ -166,11 +166,11 @@ el log normal sigue llegando igual, solo sin esa frase extra.
 ## RSS (`rss/handlers.py`)
 | Comando | Descripción |
 |---|---|
-| `/addfeed` | 🔒 Inicia el asistente para añadir un feed al chat actual (o al conectado vía `/connect`) |
-| `/myfeeds` | Lista los feeds del chat con botones para pausar/cambiar estilo/eliminar |
-| `/setinterval <id> <min>` | 🔒 Cambia cada cuánto se revisa un feed |
-| `/setstyle <id> <bitbread\|texto\|social>` | 🔒 Cambia el formato de publicación. `social` es para fuentes de X/Twitter: muestra solo el texto del post una vez (sin repetir título+descripción) |
-| `/setrhash <id> <rhash\|none>` | 🔒 Plantilla de Instant View del feed |
-| `/settranslate <id> <on\|off>` | 🔒 Traduce título/descripción con IA antes de publicar (requiere `GROQ_API_KEY`) |
-| `/rmfeed <id>` | 🔒 Elimina un feed |
-| `/testfeed <id>` | 🔒 Manda la noticia más reciente sin esperar el intervalo |
+| `/addfeed` | 🔒 Inicia el asistente para añadir un feed al chat actual (o al conectado vía `/connect`). El número que le toca (`#n`) es propio de ese chat y reutiliza huecos dejados por feeds eliminados |
+| `/myfeeds` | Lista los feeds del chat (numerados `#n`, propio del chat) con botones para pausar/cambiar estilo/eliminar |
+| `/setinterval <#feed> <min>` | 🔒 Cambia cada cuánto se revisa un feed |
+| `/setstyle <#feed> <bitbread\|texto\|social>` | 🔒 Cambia el formato de publicación. `social` es para fuentes de X/Twitter: muestra solo el texto del post una vez (sin repetir título+descripción) |
+| `/setrhash <#feed> <rhash\|none>` | 🔒 Plantilla de Instant View del feed |
+| `/settranslate <#feed> <on\|off>` | 🔒 Traduce título/descripción con IA antes de publicar (requiere `GROQ_API_KEY`) |
+| `/rmfeed <#feed>` | 🔒 Elimina un feed |
+| `/testfeed <#feed>` | 🔒 Manda la noticia más reciente sin esperar el intervalo |

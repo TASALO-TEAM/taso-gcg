@@ -356,3 +356,52 @@ el caso base de `/id`).
 2. La caché de `users` solo se llena desde grupos (`chat_tracker.py` está filtrado a
    `ChatType.GROUPS`) — si en algún momento hace falta resolver @usuario también a partir
    de mensajes en privado con el bot, habría que ampliar ese filtro.
+
+---
+
+## Sesión: numeración de feeds por chat + `/connection` con lista de conectados
+
+Origen: Ersus reportó dos fricciones de uso para admins:
+
+1. **Numeración de feeds sin límite.** `feeds.id` es un PK global `AUTOINCREMENT`
+   compartido por todos los chats; al borrar un feed, ese id quedaba "quemado" para
+   siempre (SQLite no reutiliza autoincrement), así que en un chat con rotación de feeds
+   los números en `/myfeeds` crecían sin control (#1, #2... #47) aunque solo hubiera 3
+   feeds activos. Decisión tomada con Ersus: numeración **por chat**, no global — se
+   añadió `feeds.numero_local` (nueva columna, `UNIQUE(chat_id, numero_local)`,
+   migración con backfill para feeds ya existentes) y un helper
+   `db.siguiente_numero_local(chat_id)` que rellena el primer hueco libre de ese chat al
+   crear un feed. El id interno real (PK, usado en FKs de `feed_historial`/`feed_stats`)
+   no se tocó. `/myfeeds`, `/setinterval`, `/setstyle`, `/settranslate`, `/setrhash`,
+   `/rmfeed`, `/testfeed` pasan a recibir ese `#numero_local` (no el id crudo) y lo
+   traducen resolviendo primero el chat actual/conectado — de paso cierra un permiso
+   implícito demasiado amplio que tenían: antes aceptaban cualquier id de cualquier chat
+   sin verificar que fuera el suyo.
+2. **`/connection` no listaba nada, solo mostraba el chat activo.** Si Ersus administra
+   varios chats, tenía que recordar o volver a teclear el id/@usuario cada vez que
+   quería cambiar de uno a otro. Se añadió tabla `connection_history`
+   (`user_id`, `tg_chat_id`, `titulo`, `ultimo_uso`), que `/connect` llena en cada
+   conexión exitosa. `/connection` sin argumentos ahora lista esos chats ordenados por
+   uso reciente con botones, marca "✅" el activo y lo destaca arriba; `/connection <n>`
+   o el botón selecciona esa posición, fija la conexión y muestra el mismo detalle de
+   siempre (extraído a `_render_detalle_conexion` para no duplicarlo).
+
+Plan completo: `C:\Users\ernes\Documents\tasalo\docs\plans\2026-07-21-admin-ux-feeds-connection.md`.
+
+### Verificación real hecha en esta sesión
+
+```
+py -3 -m py_compile core/database.py modules/connection.py modules/rss/handlers.py
+  -> OK, sin errores
+pytest local no corre (falta aiosqlite en el venv de Windows, limitación conocida) —
+  pendiente correrlo en el VPS tras el deploy
+```
+
+### Qué falta / próximos pasos si se retoma
+
+1. Pruebas manuales en el chat de pruebas: crear/borrar varios feeds y confirmar que
+   rellena huecos; conectar 2-3 chats con `/connect` y revisar que `/connection` los
+   liste bien con el indicador correcto.
+2. `git push` + deploy en el VPS (`git pull` + restart) — ahí sí correr `pytest` completo.
+3. Commiteado en local: `86ceec7` (feature) y `bdd6773` (mover el plan al directorio
+   compartido). `version.txt` pasó de `0.1.8` a `0.1.9`.
