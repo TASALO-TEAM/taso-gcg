@@ -26,6 +26,7 @@ posterior, documentado como pendiente.
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
 from telegram.constants import ParseMode
 from telegram.ext import Application, CallbackQueryHandler, CommandHandler, ContextTypes
+import html
 
 from core.database import db
 from utils.decorators import is_user_admin, refresh_admin_cache
@@ -89,7 +90,9 @@ async def connect_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     await db.set_connection(user_id, tg_chat_id)
     await db.record_connection_history(user_id, tg_chat_id, chat.title)
-    await update.effective_message.reply_text(f"🔗 Conectado a: <b>{chat.title}</b>", parse_mode=ParseMode.HTML)
+    await update.effective_message.reply_text(
+        f"🔗 Conectado a: <b>{html.escape(chat.title)}</b>", parse_mode=ParseMode.HTML
+    )
 
 
 async def disconnect_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -107,7 +110,7 @@ async def _render_detalle_conexion(chat_row: dict) -> str:
         "SELECT tipo FROM locks WHERE chat_id = ? AND activo = 1", (chat_row["id"],)
     )
     return (
-        f"🔗 <b>Conectado a:</b> {chat_row['titulo']}\n"
+        f"🔗 <b>Conectado a:</b> {html.escape(chat_row['titulo'] or '')}\n"
         f"ID: <code>{chat_row['tg_chat_id']}</code>\n"
         f"Oficial TASALO: {'✅' if chat_row['es_oficial_tasalo'] else '❌'}\n"
         f"Feeds RSS activos: {feeds_activos['n']}\n"
@@ -141,13 +144,13 @@ async def _render_lista_conexiones(user_id: int) -> tuple[str, InlineKeyboardMar
     for i, h in enumerate(historial, start=1):
         marca = "✅ " if h["tg_chat_id"] == activo_id else ""
         titulo = h["titulo"] or str(h["tg_chat_id"])
-        lineas.append(f"{marca}{i}. {titulo}")
+        lineas.append(f"{marca}{i}. {html.escape(titulo)}")
         botones.append([InlineKeyboardButton(
             f"{marca}{i}. {titulo}", callback_data=f"{CB_PREFIX}sel:{h['tg_chat_id']}"
         )])
 
     activo_row = await db.fetchone("SELECT titulo FROM chats WHERE tg_chat_id = ?", (activo_id,)) if activo_id else None
-    encabezado = f"🔗 Conectado ahora: <b>{activo_row['titulo']}</b>\n\n" if activo_row else ""
+    encabezado = f"🔗 Conectado ahora: <b>{html.escape(activo_row['titulo'] or '')}</b>\n\n" if activo_row else ""
     texto = encabezado + "Tus chats:\n" + "\n".join(lineas) + "\n\nToca uno o usa /connection <n>."
     return texto, InlineKeyboardMarkup(botones)
 

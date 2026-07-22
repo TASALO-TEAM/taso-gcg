@@ -405,3 +405,24 @@ pytest local no corre (falta aiosqlite en el venv de Windows, limitación conoci
 2. `git push` + deploy en el VPS (`git pull` + restart) — ahí sí correr `pytest` completo.
 3. Commiteado en local: `86ceec7` (feature) y `bdd6773` (mover el plan al directorio
    compartido). `version.txt` pasó de `0.1.8` a `0.1.9`.
+
+### Bugfix post-deploy (mismo día): `/connection` no mostraba nada
+
+Ersus reportó que tras desplegar v0.1.9, `/connection` no respondía (ni error ni lista) y
+el log no mostraba nada raro. Dos bugs reales encontrados al revisar:
+
+1. **`connection_history` nueva quedaba vacía** para quien ya estaba conectado antes del
+   deploy (tabla vieja `connections` no se migró). Corregido: `Database.init()` ahora
+   corre `_backfill_connection_history()` en cada arranque (INSERT OR IGNORE, así no pisa
+   historial ya poblado) — copia lo que haya en `connections` (con el título vía JOIN a
+   `chats`) hacia `connection_history` si aún no está ahí.
+2. **HTML sin escapar**: `_render_detalle_conexion`, `_render_lista_conexiones` y el
+   mensaje de `/connect` interpolaban el título del chat directo en un texto con
+   `parse_mode=HTML` — si el título tenía `<`, `>` o `&`, Telegram rechazaba el mensaje
+   completo (`Can't parse entities`) y el usuario no veía nada, sin traceback en el log de
+   archivo (el error de Telegram no pasaba por el logger custom). Mismo patrón de bug ya
+   corregido antes en `/help`/`/warns`. Corregido con `html.escape()` en las 4 interpolaciones.
+
+`version.txt`: `0.1.9` → `0.1.10`. Verificado con `py -3 -m py_compile` sobre
+`core/database.py` y `modules/connection.py`. Pendiente: push + deploy, y confirmar con
+Ersus que `/connection` ya funciona (sobre todo si su conexión venía de antes del deploy).

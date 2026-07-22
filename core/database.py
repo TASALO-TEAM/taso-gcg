@@ -260,9 +260,34 @@ class Database:
         self._conn.row_factory = aiosqlite.Row
         await self._conn.executescript(SCHEMA_SQL)
         await self._conn.commit()
+        await self._backfill_connection_history()
         await self._migrate()
         await self._set_schema_version()
         log(f"Base de datos lista en {self.path} (WAL)")
+
+    async def _backfill_connection_history(self):
+        """connection_history es tabla nueva (antes solo existía `connections`,
+        que guarda una única conexión viva por usuario sin historial). Sin este
+        backfill, un usuario que ya estaba conectado antes de este cambio vería
+        /connection como si nunca se hubiera conectado — se le "perdía" su
+        conexión de la vista nueva aunque siguiera viva en `connections`.
+        INSERT OR IGNORE (no INSERT a secas) porque esto corre en CADA
+        arranque, no solo la primera vez: si el usuario ya tiene una entrada
+        en connection_history (por (user_id, tg_chat_id), su PK), esa fila no
+        se toca — así no pisa un `ultimo_uso` más reciente que ya tenga ahí."""
+        await self._conn.execute(
+            """
+            INSERT OR IGNORE INTO connection_history(user_id, tg_chat_id, titulo, ultimo_uso)
+            SELECT c.user_id, c.tg_chat_id, ch.titulo, c.conectado_en
+            FROM connections c
+            LEFT JOIN chats ch ON ch.tg_chat_id = c.tg_chat_id
+            """
+        )
+        await self._conn.commit()
+        cur = await self._conn.execute("SELECT changes()")
+        n = (await cur.fetchone())[0]
+        if n:
+            log(f"🔧 Migración: connection_history poblada con {n} conexión(es) existente(s)")
 
     async def _migrate(self):
         """Agrega columnas nuevas a tablas que ya existían antes de que se
