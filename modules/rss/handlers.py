@@ -16,6 +16,7 @@ from telegram.ext import (
     Application, CommandHandler, CallbackQueryHandler, ConversationHandler,
     MessageHandler, filters, ContextTypes,
 )
+import html
 
 from core.database import db
 from utils.decorators import user_admin, group_only
@@ -102,7 +103,7 @@ async def addfeed_url(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if es_social else ""
     )
     await aviso.edit_text(
-        f"✅ Encontrado: <b>{titulo}</b>\n¿Qué estilo de publicación prefieres?{aviso_extra}",
+        f"✅ Encontrado: <b>{html.escape(titulo)}</b>\n¿Qué estilo de publicación prefieres?{aviso_extra}",
         parse_mode=ParseMode.HTML, reply_markup=teclado,
     )
     return WAITING_STYLE
@@ -124,7 +125,7 @@ async def addfeed_style(update: Update, context: ContextTypes.DEFAULT_TYPE):
         (chat_row["id"], numero, url, url_original, titulo, estilo),
     )
     await query.edit_message_text(
-        f"🎉 Feed «{titulo}» añadido como <b>#{numero}</b>, estilo <b>{estilo}</b>. "
+        f"🎉 Feed «{html.escape(titulo)}» añadido como <b>#{numero}</b>, estilo <b>{estilo}</b>. "
         f"Revisa /myfeeds para ajustarlo.",
         parse_mode=ParseMode.HTML,
     )
@@ -150,7 +151,7 @@ async def myfeeds_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     for f in feeds:
         estado = "🟢 activo" if f["activo"] else "🔴 pausado"
         texto = (
-            f"📰 <b>{f['titulo'] or f['url']}</b> (#{f['numero_local']})\n"
+            f"📰 <b>{html.escape(f['titulo'] or f['url'])}</b> (#{f['numero_local']})\n"
             f"Estilo: {f['estilo']} | Intervalo: {f['intervalo_min']}m | {estado}"
         )
         botones = InlineKeyboardMarkup([[

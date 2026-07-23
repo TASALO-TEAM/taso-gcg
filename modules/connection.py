@@ -151,7 +151,7 @@ async def _render_lista_conexiones(user_id: int) -> tuple[str, InlineKeyboardMar
 
     activo_row = await db.fetchone("SELECT titulo FROM chats WHERE tg_chat_id = ?", (activo_id,)) if activo_id else None
     encabezado = f"🔗 Conectado ahora: <b>{html.escape(activo_row['titulo'] or '')}</b>\n\n" if activo_row else ""
-    texto = encabezado + "Tus chats:\n" + "\n".join(lineas) + "\n\nToca uno o usa /connection <n>."
+    texto = encabezado + "Tus chats:\n" + "\n".join(lineas) + "\n\nToca uno o usa /connection seguido del número (ej. /connection 1)."
     return texto, InlineKeyboardMarkup(botones)
 
 async def connection_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):

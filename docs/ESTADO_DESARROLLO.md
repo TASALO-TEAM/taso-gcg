@@ -463,3 +463,35 @@ seguir, hace falta:
 5. Reproducir `/connection` de nuevo en el PM y mandar el log fresco — con el error
    handler puesto, si sigue sin responder, esta vez el traceback real va a estar en
    `logs/taso-gcg-errors.log`.
+
+### Bugfix post-deploy #3: encontrado el bug real gracias al error handler
+
+Con `on_error` ya desplegado, la traza completa apareció en el log:
+`modules/connection.py`, línea 172, `connection_cmd` → `telegram.error.BadRequest:
+Can't parse entities: unsupported start tag "n" at byte offset 124`.
+
+Causa: bug tonto en el texto literal de `_render_lista_conexiones` —
+`"...Toca uno o usa /connection <n>."` — con `parse_mode=HTML`, Telegram intenta
+parsear `<n>` como una etiqueta HTML inexistente y rechaza el mensaje COMPLETO (no
+solo esa parte). No tenía nada que ver con el escape de títulos que se había arreglado
+antes (ese fix seguía siendo válido y necesario, solo que este otro bug pegaba primero
+en el flujo más común: `/connection` sin argumentos). Corregido: se reescribió esa
+frase sin ángulos ("...usa /connection seguido del número (ej. /connection 1).").
+
+De paso, se aplicó `html.escape()` también a los títulos de feeds RSS (externos, vienen
+del feed original) en `modules/rss/handlers.py` (`addfeed_url`, `addfeed_style`,
+`myfeeds_cmd`) — mismo patrón de riesgo latente: un feed con `<` en el título habría
+roto esos mensajes exactamente igual, y con el error handler ahora si eso pasa al menos
+va a quedar registrado en vez de fallar en silencio.
+
+`version.txt`: `0.1.11` → `0.1.12`.
+
+**Pendiente crítico (igual que la sesión anterior)**: el conector de ejecución de
+comandos volvió a caerse a media tarea. Cambios escritos en disco, SIN compilar, SIN
+commitear, SIN pushear/desplegar. Antes de seguir:
+1. `py -3 -m py_compile modules\connection.py modules\rss\handlers.py`
+2. `git add modules/connection.py modules/rss/handlers.py version.txt docs/ESTADO_DESARROLLO.md`
+3. `git commit -m "fix(connection,rss): escapar <n> literal en /connection y titulos externos en HTML"`
+4. `git push`
+5. Deploy en el VPS (`git pull` + restart) y probar `/connection` de nuevo — esta vez sí
+   debería mostrar la lista sin reventar.
