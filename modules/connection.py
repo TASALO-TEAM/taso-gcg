@@ -10,8 +10,9 @@ Cambios sobre la primera versión:
 - /connect ahora acepta @username del canal/grupo además del ID numérico,
   para no obligar a sacar el ID con /id salvo que sea un chat sin username
   (típicamente grupos privados sin enlace público).
-- /connection sin argumentos ahora lista los chats a los que ya te
-  conectaste antes (tabla `connection_history`), marcando cuál está activo
+- /connection sin argumentos ahora lista TODOS los chats donde el usuario
+  administra el bot (via admins_cache, la misma caché de los comandos de
+  moderación, unida con el historial de /connect), marcando cuál está activo
   ahora mismo. /connection <n> (o el botón equivalente) cambia la conexión
   activa a la posición n de esa lista y muestra su detalle — ya no hace
   falta volver a teclear el id/@usuario cada vez que cambias de chat.
@@ -132,16 +133,21 @@ async def _activar_y_mostrar(update: Update, context: ContextTypes.DEFAULT_TYPE,
 
 
 async def _render_lista_conexiones(user_id: int) -> tuple[str, InlineKeyboardMarkup | None]:
-    """Arma el texto + botones de la lista de chats ya usados, marcando
-    con ✅ el que está activo ahora mismo."""
-    historial = await db.get_connection_history(user_id)
-    if not historial:
-        return "No estás conectado a ningún chat. Usa /connect <@usuario|id>.", None
+    """Arma el texto + botones de TODOS los chats donde el usuario administra
+    el bot (no solo los que conectó antes por /connect), marcando con ✅ el
+    que está activo ahora mismo."""
+    chats = await db.get_chats_administrados(user_id)
+    if not chats:
+        return (
+            "No encontré chats donde seas administrador todavía. Si acabas de añadir el "
+            "bot a un grupo/canal, usa algún comando ahí una vez (o /connect <@usuario|id> "
+            "desde aquí) para que quede registrado."
+        ), None
 
     activo_id = await db.get_connection(user_id)
     lineas = []
     botones = []
-    for i, h in enumerate(historial, start=1):
+    for i, h in enumerate(chats, start=1):
         marca = "✅ " if h["tg_chat_id"] == activo_id else ""
         titulo = h["titulo"] or str(h["tg_chat_id"])
         lineas.append(f"{marca}{i}. {html.escape(titulo)}")
@@ -159,13 +165,13 @@ async def connection_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     if context.args and context.args[0].isdigit():
         posicion = int(context.args[0])
-        historial = await db.get_connection_history(user_id)
-        if posicion < 1 or posicion > len(historial):
+        chats = await db.get_chats_administrados(user_id)
+        if posicion < 1 or posicion > len(chats):
             await update.effective_message.reply_text(
                 f"No hay un chat #{posicion} en tu lista. Usa /connection para verla."
             )
             return
-        await _activar_y_mostrar(update, context, historial[posicion - 1]["tg_chat_id"])
+        await _activar_y_mostrar(update, context, chats[posicion - 1]["tg_chat_id"])
         return
 
     texto, teclado = await _render_lista_conexiones(user_id)

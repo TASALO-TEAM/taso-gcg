@@ -495,3 +495,34 @@ commitear, SIN pushear/desplegar. Antes de seguir:
 4. `git push`
 5. Deploy en el VPS (`git pull` + restart) y probar `/connection` de nuevo — esta vez sí
    debería mostrar la lista sin reventar.
+
+### Ajuste de alcance (mismo día): `/connection` solo mostraba el historial de /connect
+
+Ersus probó y el mensaje ya no revienta, pero solo le mostraba el chat activo — él
+administra varios chats y esperaba verlos todos, no solo los que había usado antes con
+`/connect` desde el PM (que es un flujo aparte, pensado para gestionar un chat sin
+escribir ahí; la mayoría de sus chats los administra directamente en el grupo, sin pasar
+por `/connect` nunca).
+
+Corregido: nuevo método `db.get_chats_administrados(user_id)` que junta dos fuentes —
+todos los chats donde aparece en `admins_cache` (la misma caché que ya usan los comandos
+de moderación, se llena sola la primera vez que se corre un comando admin en ese chat) más
+lo que haya en `connection_history`. `_render_lista_conexiones` y la selección por
+posición (`/connection <n>`) pasan a usar esta lista completa en vez de solo el historial.
+
+**Limitación conocida, documentada en el docstring del método**: un chat recién añadido
+donde nunca corrió un comando de moderación (admins_cache vacía ahí) y que tampoco se usó
+con `/connect` no va a aparecer hasta que ocurra una de esas dos cosas una vez. Si a Ersus
+le falta algún chat en la lista, el atajo es correr cualquier comando de admin ahí una vez
+(o `/connect <id>` una sola vez) y ya queda registrado para siempre.
+
+`version.txt`: `0.1.12` → `0.1.13`.
+
+**Pendiente crítico (tercera vez, mismo motivo)**: el conector de ejecución de comandos
+sigue caído. Compilar/commitear/pushear pendiente:
+1. `py -3 -m py_compile core\database.py modules\connection.py`
+2. `git add core/database.py modules/connection.py version.txt docs/ESTADO_DESARROLLO.md`
+3. `git commit -m "feat(connection): listar todos los chats administrados, no solo el historial de /connect"`
+4. `git push`
+5. Deploy en el VPS (`git pull` + restart) y probar `/connection` — debería listar todos
+   los chats donde Ersus es admin.

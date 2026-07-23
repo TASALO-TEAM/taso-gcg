@@ -541,6 +541,35 @@ class Database:
             (user_id,),
         )
 
+    async def get_chats_administrados(self, user_id: int) -> list[dict]:
+        """Todos los chats donde este usuario es admin (según admins_cache,
+        la misma caché que usan los comandos de moderación) O a los que ya se
+        conectó antes por /connect — la unión de ambos, para que /connection
+        muestre TODOS sus chats y no solo los que conectó manualmente por PM.
+        Limitación conocida: un chat nuevo donde nunca corrió un comando de
+        moderación (admins_cache vacía ahí) y que tampoco usó con /connect no
+        va a aparecer hasta que ocurra una de esas dos cosas una vez.
+        Ordena primero por uso más reciente en connection_history, y después
+        alfabéticamente el resto."""
+        return await self.fetchall(
+            """
+            SELECT tg_chat_id, titulo FROM (
+                SELECT c.tg_chat_id AS tg_chat_id, c.titulo AS titulo,
+                       ch.ultimo_uso AS ultimo_uso
+                FROM chats c
+                JOIN admins_cache a ON a.chat_id = c.tg_chat_id
+                LEFT JOIN connection_history ch
+                    ON ch.tg_chat_id = c.tg_chat_id AND ch.user_id = a.user_id
+                WHERE a.user_id = ? AND c.activo = 1
+                UNION
+                SELECT tg_chat_id, titulo, ultimo_uso
+                FROM connection_history WHERE user_id = ?
+            )
+            ORDER BY (ultimo_uso IS NULL), ultimo_uso DESC, titulo COLLATE NOCASE
+            """,
+            (user_id, user_id),
+        )
+
     # --- Caché de usuarios (resolución de @username -> user_id) ---
     async def upsert_user(self, user) -> None:
         """Guarda o actualiza los datos vistos de un usuario. Se llama en cada
