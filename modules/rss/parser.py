@@ -123,6 +123,24 @@ class RSSParser:
         return any(alias in host for alias in cls._NITTER_MIRROR_HOSTS)
 
     @staticmethod
+    def _to_x_link(link: str) -> str | None:
+        """Convierte un permalink de un espejo Nitter (o de twitter.com) a su
+        equivalente en x.com. Los espejos Nitter replican el mismo path que
+        el tuit original (/usuario/status/id), así que basta con cambiar el
+        host — no requiere scraping ni llamada de red. Devuelve None si el
+        link no tiene forma reconocible, para que el llamador conserve el
+        original en vez de mandar un link roto."""
+        if not link:
+            return None
+        try:
+            parsed = urlparse(link.strip())
+            if not parsed.netloc or not parsed.path or parsed.path == "/":
+                return None
+            return f"https://x.com{parsed.path}"
+        except Exception:
+            return None
+
+    @staticmethod
     def _clean_html(raw_html):
         if not raw_html:
             return ""
@@ -329,17 +347,30 @@ class RSSParser:
                     return None, "Bloqueo Cloudflare JS"
                 return None, "XML inválido o bloqueado"
 
+            # Fuentes X/Twitter (directas o vía espejo Nitter): se muestra "X"
+            # como fuente en vez del <title> crudo del feed (que trae el
+            # branding del espejo Nitter), y se intenta apuntar el link al
+            # post original en x.com en vez del permalink del espejo. Si la
+            # conversión no aplica (link con forma rara), se conserva el link
+            # original tal cual.
+            es_fuente_social = cls.is_social_source(url)
+
             entries = []
             for entry in feed.entries[:10]:
+                link = entry.get("link", "")
+                source = feed.feed.get("title", "RSS Source")
+                if es_fuente_social:
+                    source = "X"
+                    link = cls._to_x_link(link) or link
                 entries.append({
                     "title": cls._clean_html(entry.get("title", "Sin título")),
-                    "link": entry.get("link", ""),
+                    "link": link,
                     "description": cls._clean_html(entry.get("summary", entry.get("description", ""))),
                     "image": cls._extract_image(entry),
                     "video": cls._extract_video(entry),
                     "external_link": cls._extract_external_link(entry),
                     "hash": cls._get_hash(entry),
-                    "source": feed.feed.get("title", "RSS Source"),
+                    "source": source,
                 })
             return {"title": feed.feed.get("title", "Feed"), "entries": entries}, None
         except Exception as e:
