@@ -123,6 +123,18 @@ class RSSParser:
         return any(alias in host for alias in cls._NITTER_MIRROR_HOSTS)
 
     @staticmethod
+    def _username_from_feed_url(url: str) -> str | None:
+        """Extrae el @usuario del path de la URL del feed ya resuelta
+        (siempre con forma base/usuario/rss, sea Nitter, un alias sin
+        'nitter' en el nombre, o X/Twitter directo). Más simple y fiable que
+        adivinar por el host: no depende de la lista de alias conocidos."""
+        try:
+            partes = [p for p in urlparse(url).path.split("/") if p]
+            return partes[0] if partes else None
+        except Exception:
+            return None
+
+    @staticmethod
     def _to_x_link(link: str) -> str | None:
         """Convierte un permalink de un espejo Nitter (o de twitter.com) a su
         equivalente en x.com. Los espejos Nitter replican el mismo path que
@@ -347,20 +359,21 @@ class RSSParser:
                     return None, "Bloqueo Cloudflare JS"
                 return None, "XML inválido o bloqueado"
 
-            # Fuentes X/Twitter (directas o vía espejo Nitter): se muestra "X"
-            # como fuente en vez del <title> crudo del feed (que trae el
-            # branding del espejo Nitter), y se intenta apuntar el link al
-            # post original en x.com en vez del permalink del espejo. Si la
-            # conversión no aplica (link con forma rara), se conserva el link
-            # original tal cual.
+            # Fuentes X/Twitter (directas o vía espejo Nitter): se muestra
+            # "X / @usuario" como fuente en vez del <title> crudo del feed
+            # (que trae el branding del espejo Nitter), y se intenta apuntar
+            # el link al post original en x.com en vez del permalink del
+            # espejo. Si la conversión no aplica (link con forma rara), se
+            # conserva el link original tal cual.
             es_fuente_social = cls.is_social_source(url)
+            username_social = cls._username_from_feed_url(url) if es_fuente_social else None
 
             entries = []
             for entry in feed.entries[:10]:
                 link = entry.get("link", "")
                 source = feed.feed.get("title", "RSS Source")
                 if es_fuente_social:
-                    source = "X"
+                    source = f"X / @{username_social}" if username_social else "X"
                     link = cls._to_x_link(link) or link
                 entries.append({
                     "title": cls._clean_html(entry.get("title", "Sin título")),
