@@ -38,8 +38,8 @@ ARCHIVE_DIR = os.path.join(LOGS_DIR, "archive")
 LOG_FILE_PATH = os.path.join(LOGS_DIR, f"{SERVICE_NAME}.log")
 ERROR_LOG_PATH = os.path.join(LOGS_DIR, f"{SERVICE_NAME}-errors.log")
 
-MAX_BYTES = 8 * 1024 * 1024  # 8 MB por archivo activo antes de rotar
-BACKUP_COUNT = 10  # tope de seguridad de archivos rotados por log (además de /log clear)
+MAX_BYTES = 2 * 1024 * 1024  # 2 MB por archivo activo antes de rotar
+BACKUP_COUNT = 4  # + el activo = 5 logs totales por servicio (ver docs/plans/2026-07-28-log-rotation-2mb.md)
 
 LOG_FORMAT = "[%(asctime)s] | %(levelname)s | %(message)s"
 DATE_FORMAT = "%Y-%m-%d %H:%M:%S"
