@@ -36,8 +36,14 @@ class RSSResolver:
             username = RSSParser._get_twitter_username(url)
             if username:
                 log(f"🐦 Buscando feed para @{username}...")
-                instances = RSSParser.NITTER_INSTANCES.copy()
-                random.shuffle(instances)
+                # Prioriza las instancias con RSS confirmado hoy antes que el
+                # resto del pool (ver NITTER_RSS_CONFIRMADAS en parser.py);
+                # dentro de cada grupo se mantiene el orden aleatorio.
+                prioritarias = [i for i in RSSParser.NITTER_INSTANCES if i in RSSParser.NITTER_RSS_CONFIRMADAS]
+                resto = [i for i in RSSParser.NITTER_INSTANCES if i not in RSSParser.NITTER_RSS_CONFIRMADAS]
+                random.shuffle(prioritarias)
+                random.shuffle(resto)
+                instances = prioritarias + resto
                 for nitter_base in instances:
                     nitter_url = f"{nitter_base}/{username}/rss"
                     content, error = await RSSParser.fetch_content(nitter_url)

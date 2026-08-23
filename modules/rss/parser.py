@@ -48,23 +48,47 @@ class RSSParser:
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
     }
 
+    # Instancias con la ruta /rss confirmada funcionando hoy (verificado
+    # contra https://status.d420.de/ el 2026-08-22 — revisar y actualizar
+    # este set si cambia el panorama; Nitter en 2026 depende de pools de
+    # cuentas invitadas que X revoca sin aviso, así que esto puede volver a
+    # moverse en días/semanas). El resolver las prueba primero; el resto de
+    # NITTER_INSTANCES queda como respaldo por si se recuperan.
+    #
+    # IMPORTANTE: fetch_content() ahora loguea también los 403/429/503
+    # limpios (antes fallaban en silencio) — revisar el log tras el deploy
+    # para confirmar cuáles de estas realmente responden a este VPS y no
+    # solo a monitores externos con IP/fingerprint distinto.
+    NITTER_RSS_CONFIRMADAS = {
+        "https://nitter.tiekoetter.com",
+        "https://nitter.net",
+        "https://xcancel.com",
+        "https://nitter.catsarch.com",
+        "https://nitter.kareem.one",
+        "https://nitter.space",
+        "https://lightbrd.com",
+        "https://nitter.poast.org",
+        "https://nuku.trabun.org",
+        "https://nitter.privacyredirect.com",
+    }
+
+    # Podadas 2026-08-22 (ver docs/plans/2026-08-22-nitter-instancias-fallback.md):
+    # nitter.kavin.app, nitter.koyu.space, nitter.soopy.moe, nitter.lucabased.xyz
+    # (dominios muertos, no resuelven por DNS) y nitter.privacydev.net,
+    # nitter.nixnet.services (TLS roto de forma consistente, cero éxitos en
+    # meses de log) salieron del pool. Se agregó nitter.kareem.one.
     NITTER_INSTANCES = [
         "https://nitter.privacyredirect.com",
         "https://nitter.net",
         "https://xcancel.com",
         "https://nitter.poast.org",
-        "https://nitter.privacydev.net",
-        "https://nitter.soopy.moe",
-        "https://nitter.lucabased.xyz",
         "https://lightbrd.com",
         "https://nitter.space",
         "https://nitter.tiekoetter.com",
         "https://nuku.trabun.org",
         "https://nitter.catsarch.com",
+        "https://nitter.kareem.one",
         "https://nitter.kavin.rocks",
-        "https://nitter.koyu.space",
-        "https://nitter.nixnet.services",
-        "https://nitter.kavin.app",
         "https://twiiit.com/",
     ]
 
@@ -332,19 +356,31 @@ class RSSParser:
     async def fetch_content(cls, url):
         profiles = list(cls.PROFILES)
         random.shuffle(profiles)
+        # Motivo real del último intento fallido: antes se perdía (solo se logueaba
+        # en debug) y monitor.py recibía siempre el mismo mensaje genérico, lo que
+        # además le impedía distinguir un bloqueo WAF real (403/429/Cloudflare) de
+        # un simple timeout o fallo de DNS al decidir si dispara la auto-reparación.
+        last_reason = "sin respuesta"
         for profile in profiles[:2]:
             try:
                 async with AsyncSession(impersonate=profile, headers=cls.HEADERS) as session:
                     response = await session.get(url, timeout=15)
                     if response.status_code == 200:
                         return response.content, None
+                    last_reason = f"HTTP {response.status_code}"
                     if response.status_code in (403, 429, 503):
+                        # Antes esto fallaba en silencio (sin log) a diferencia
+                        # de las excepciones de red de abajo, ocultando cuáles
+                        # instancias "sanas" según monitores externos en
+                        # realidad bloquean a este VPS/fingerprint.
+                        log(f"Error conexión ({profile}) en {url}: HTTP {response.status_code}", "warning")
                         await asyncio.sleep(1)
                         continue
             except Exception as e:
-                log(f"Error conexión ({profile}) en {url}: {e}", "debug")
+                last_reason = f"{type(e).__name__}: {e}"
+                log(f"Error conexión ({profile}) en {url}: {e}", "warning")
                 continue
-        return None, "Error de conexión o Bloqueo WAF persistente"
+        return None, f"Error de conexión o Bloqueo WAF persistente ({last_reason})"
 
     @classmethod
     async def parse(cls, url):
