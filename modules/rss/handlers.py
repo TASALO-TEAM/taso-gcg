@@ -23,6 +23,7 @@ from utils.decorators import user_admin, group_only
 from modules.rss.parser import RSSParser
 from modules.rss.resolver import RSSResolver
 from modules.rss.monitor import RSSMonitor
+from modules.rss.nitter_watch import check_nitter_recovery
 from modules.connection import get_connected_chat_id
 
 __mod_name__ = "RSS"
@@ -339,5 +340,9 @@ def register(application: Application, sudo_users):
 
     scheduler = AsyncIOScheduler()
     scheduler.add_job(_monitor.check_feeds, IntervalTrigger(seconds=60), id="rss_monitor", max_instances=1)
+    scheduler.add_job(
+        check_nitter_recovery, IntervalTrigger(minutes=30),
+        args=[application.bot], id="nitter_watch", max_instances=1,
+    )
     scheduler.start()
     application.bot_data["rss_scheduler"] = scheduler
