@@ -15,6 +15,7 @@ from urllib.parse import urlparse, parse_qsl, urlencode
 from curl_cffi.requests import AsyncSession
 from bs4 import BeautifulSoup
 
+from modules.rss.bluesky import BlueskyClient
 from utils.logger import log
 
 
@@ -384,6 +385,13 @@ class RSSParser:
 
     @classmethod
     async def parse(cls, url):
+        if BlueskyClient.is_bluesky_url(url):
+            # Fuente JSON (AT Protocol), no XML — feedparser no aplica acá.
+            # BlueskyClient.parse() ya devuelve el mismo contrato
+            # ({"title","entries":[...]}, error) con entries en el formato
+            # que espera monitor.py, así que no hace falta nada más.
+            return await BlueskyClient.parse(url)
+
         content, error = await cls.fetch_content(url)
         if error:
             log(f"Error fetching {url}: {error}", "warning")

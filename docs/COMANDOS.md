@@ -166,10 +166,10 @@ el log normal sigue llegando igual, solo sin esa frase extra.
 ## RSS (`rss/handlers.py`)
 | Comando | Descripción |
 |---|---|
-| `/addfeed` | 🔒 Inicia el asistente para añadir un feed al chat actual (o al conectado vía `/connect`). El número que le toca (`#n`) es propio de ese chat y reutiliza huecos dejados por feeds eliminados |
+| `/addfeed` | 🔒 Inicia el asistente para añadir un feed al chat actual (o al conectado vía `/connect`). Acepta un RSS genérico, un link de X/Twitter o un link de perfil de Bluesky (`bsky.app/profile/...`). El número que le toca (`#n`) es propio de ese chat y reutiliza huecos dejados por feeds eliminados |
 | `/myfeeds` | Lista los feeds del chat (numerados `#n`, propio del chat) con botones para pausar/cambiar estilo/eliminar |
 | `/setinterval <#feed> <min>` | 🔒 Cambia cada cuánto se revisa un feed |
-| `/setstyle <#feed> <bitbread\|texto\|social>` | 🔒 Cambia el formato de publicación. `social` es para fuentes de X/Twitter: muestra solo el texto del post una vez (sin repetir título+descripción) |
+| `/setstyle <#feed> <bitbread\|texto\|social>` | 🔒 Cambia el formato de publicación. `social` es para fuentes de X/Twitter o Bluesky: muestra solo el texto del post una vez (sin repetir título+descripción) |
 | `/setrhash <#feed> <rhash\|none>` | 🔒 Plantilla de Instant View del feed |
 | `/settranslate <#feed> <on\|off>` | 🔒 Traduce título/descripción con IA antes de publicar (requiere `GROQ_API_KEY`) |
 | `/rmfeed <#feed>` | 🔒 Elimina un feed |

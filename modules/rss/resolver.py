@@ -9,6 +9,7 @@ import feedparser
 from bs4 import BeautifulSoup
 
 from modules.rss.parser import RSSParser
+from modules.rss.bluesky import BlueskyClient
 from utils.logger import log
 
 
@@ -29,6 +30,13 @@ class RSSResolver:
             url = f"https://{url}"
 
         log(f"🔍 Resolviendo feed para: {url}")
+
+        if BlueskyClient.is_bluesky_url(url):
+            # A diferencia de X/RSS genérico, acá no hay nada que "descubrir":
+            # la URL de perfil ya es la fuente. Solo se valida que la cuenta
+            # exista contra la API pública de Bluesky (sin Nitter, sin WAF).
+            return await BlueskyClient.resolve(url)
+
         candidates = []
         domain_error = None
 

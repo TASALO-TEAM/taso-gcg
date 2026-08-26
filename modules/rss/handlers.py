@@ -22,6 +22,7 @@ from core.database import db
 from utils.decorators import user_admin, group_only
 from modules.rss.parser import RSSParser
 from modules.rss.resolver import RSSResolver
+from modules.rss.bluesky import BlueskyClient
 from modules.rss.monitor import RSSMonitor
 from modules.rss.nitter_watch import check_nitter_recovery
 from modules.connection import get_connected_chat_id
@@ -36,7 +37,11 @@ ESTILOS_VALIDOS = ("bitbread", "texto", "social")
 ESTILOS_LABELS = {
     "bitbread": "📸 BitBread (foto/video)",
     "texto": "📝 Solo texto",
-    "social": "🐦 X/Twitter (sin repetir texto)",
+    # Antes decía "🐦 X/Twitter (sin repetir texto)" — se generalizó al sumar
+    # Bluesky como segunda fuente que necesita este mismo estilo (ver
+    # addfeed_url: el aviso de recomendación sí distingue cuál plataforma
+    # detectó, esta etiqueta del botón queda neutral para las dos).
+    "social": "🔁 Social (sin repetir texto)",
 }
 
 _monitor: RSSMonitor | None = None
@@ -86,11 +91,13 @@ async def addfeed_url(update: Update, context: ContextTypes.DEFAULT_TYPE):
     context.user_data["rss_url_original"] = url
     context.user_data["rss_titulo"] = titulo
 
-    es_social = RSSParser.is_social_source(resolved_url) or RSSParser.is_social_source(url)
+    es_x = RSSParser.is_social_source(resolved_url) or RSSParser.is_social_source(url)
+    es_bsky = BlueskyClient.is_bluesky_url(resolved_url) or BlueskyClient.is_bluesky_url(url)
+    es_social = es_x or es_bsky
 
-    # Si es X/Twitter (o un espejo Nitter), la opción "social" va primero
-    # porque es la recomendada: en estas fuentes el título y la descripción
-    # suelen traer el mismo texto del post, y ese estilo evita repetirlo.
+    # Si es X/Twitter (o espejo Nitter) o Bluesky, la opción "social" va
+    # primero porque es la recomendada: en estas fuentes el texto del post
+    # ES el título y la descripción a la vez, y ese estilo evita repetirlo.
     orden = ("social", "bitbread", "texto") if es_social else ("bitbread", "texto", "social")
     botones = [
         InlineKeyboardButton(ESTILOS_LABELS[estilo], callback_data=f"{CB_PREFIX}style:{estilo}")
@@ -98,11 +105,18 @@ async def addfeed_url(update: Update, context: ContextTypes.DEFAULT_TYPE):
     ]
     teclado = InlineKeyboardMarkup([[botones[0]], [botones[1]], [botones[2]]])
 
-    aviso_extra = (
-        "\n🐦 Parece una fuente de X/Twitter — te recomiendo el estilo "
-        "<b>X/Twitter (sin repetir texto)</b>."
-        if es_social else ""
-    )
+    if es_x:
+        aviso_extra = (
+            "\n🐦 Parece una fuente de X/Twitter — te recomiendo el estilo "
+            "<b>Social (sin repetir texto)</b>."
+        )
+    elif es_bsky:
+        aviso_extra = (
+            "\n🦋 Parece una fuente de Bluesky — te recomiendo el estilo "
+            "<b>Social (sin repetir texto)</b>."
+        )
+    else:
+        aviso_extra = ""
     await aviso.edit_text(
         f"✅ Encontrado: <b>{html.escape(titulo)}</b>\n¿Qué estilo de publicación prefieres?{aviso_extra}",
         parse_mode=ParseMode.HTML, reply_markup=teclado,

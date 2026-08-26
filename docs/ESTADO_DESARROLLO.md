@@ -526,3 +526,82 @@ sigue caído. Compilar/commitear/pushear pendiente:
 4. `git push`
 5. Deploy en el VPS (`git pull` + restart) y probar `/connection` — debería listar todos
    los chats donde Ersus es admin.
+
+### Nueva fuente: Bluesky (AT Protocol) como feed, directo desde la fuente
+
+Ersus pidió poder seguir cuentas de Bluesky con `/addfeed` igual que ya funciona con
+X/Twitter o un RSS genérico, sin depender de un espejo tipo Nitter — Bluesky expone una
+API pública oficial y sin autenticación para lectura (perfiles y posts), directo contra
+el AppView de Bluesky en `https://public.api.bsky.app` (ver
+https://docs.bsky.app/docs/advanced-guides/api-directory). Se validó que la cuenta de
+prueba (`watcher.guru`) resuelve correctamente contra esa API antes de escribir nada.
+
+Nuevo módulo `modules/rss/bluesky.py` (`BlueskyClient`), con la misma interfaz que ya
+usan `RSSResolver.find_best_feed()` y `RSSParser.parse()` — así el resto del pipeline
+(dedup por hash, dedup por similitud de título, estilos de plantilla, traducción,
+Instant View) no necesita saber que existe una fuente más:
+
+- `is_bluesky_url(url)` reconoce links `bsky.app/profile/<handle-o-did>`.
+- `resolve(url)` — llamado desde `RSSResolver.find_best_feed()` — no descubre nada (la
+  URL de perfil YA es la fuente), solo confirma que la cuenta existe vía
+  `app.bsky.actor.getProfile` y normaliza a la URL con el handle real (por si pegaron un
+  DID).
+- `parse(url)` — llamado desde `RSSParser.parse()` — trae los posts vía
+  `app.bsky.feed.getAuthorFeed` (`filter=posts_no_replies`, excluye reposts) y los
+  normaliza al mismo dict de entry que usa el resto del código (`title`, `link`,
+  `description`, `image`, `video`, `external_link`, `hash`, `source`). El hash se arma
+  con el `uri` del post (`at://did:.../app.bsky.feed.post/<rkey>`), que ya es un
+  identificador estable — no hace falta el fallback de link+título que usa RSSParser
+  para feeds sin guid.
+- Usa `httpx` directo (ya en requirements.txt para `core/ai_client.py`), no
+  `RSSParser.fetch_content()` — esa función existe para sitios que sí bloquean scraping
+  (headers de navegador, rotación de perfil TLS), y la API de Bluesky no lo necesita.
+
+**Limitación conocida (documentada en el código)**: el video de Bluesky se sirve como
+HLS (m3u8 + segmentos), no como un mp4 directo, así que `bot.send_video()` no puede
+usarlo — se manda la miniatura del video como imagen en su lugar. Mejora futura posible
+si hace falta: transcodificar server-side.
+
+Cambios en el resto del pipeline (todos mínimos, un `if` cada uno):
+- `resolver.py` / `parser.py`: nueva rama al principio de `find_best_feed()` y `parse()`
+  que delega a `BlueskyClient` si `is_bluesky_url(url)`.
+- `handlers.py`: `/addfeed` ahora también sugiere el estilo recomendado (antes solo para
+  X/Twitter) cuando detecta un link de Bluesky. La etiqueta del estilo `social` se
+  generalizó de `"🐦 X/Twitter (sin repetir texto)"` a `"🔁 Social (sin repetir texto)"`
+  porque ya no es exclusiva de X; el aviso de recomendación sigue distinguiendo cuál
+  plataforma se detectó.
+- **A propósito NO se tocó** `RSSParser.is_social_source()` — la usa también
+  `nitter_watch.py` para elegir qué cuenta usar de prueba contra el pool de instancias
+  Nitter, y mezclar ahí una cuenta de Bluesky habría sido incorrecto (se probarían
+  instancias de Nitter con un handle que no existe en X). Bluesky tiene su propio check
+  independiente (`BlueskyClient.is_bluesky_url`).
+
+Tests nuevos: `tests/test_bluesky.py` (detección de URL, extracción de actor, mapeo
+post→entry y extracción de imagen/link externo desde los tres tipos de embed más
+comunes — imágenes, tarjeta de link externo, video). Solo lógica pura, sin red, mismo
+criterio de alcance que `test_rss_social_style.py`. Suite completa: 83 passed (los 4
+errores de `test_log_channel.py` son preexistentes, de un fixture que referencia un
+atributo que ya no existe en `modules/log_channel.py` — no tienen relación con este
+cambio, quedan pendientes aparte).
+
+Diagnóstico en vivo: `scripts/diagnostico_bluesky.py` (análogo a
+`diagnostico_nitter.py`), corre el flujo completo `resolve()` + `parse()` contra una
+cuenta real y muestra el primer post ya normalizado. **No se pudo ejecutar desde este
+entorno de desarrollo** — su salida a internet solo permite una lista fija de dominios
+(PyPI, GitHub, npm) y no incluye `bsky.app`/`public.api.bsky.app` — así que la
+validación end-to-end contra la API real queda pendiente de correr una vez subido al
+VPS (sí se confirmó por separado, vía búsqueda web, que `watcher.guru` existe y resuelve
+a `did:plc:3h2ole6by5d5l6wz3ijrixz4`). Correr `python -m scripts.diagnostico_bluesky`
+en el VPS antes de anunciar la función como lista.
+
+`version.txt`: `1.0.2.0` → `1.0.3.0`.
+
+**Archivos nuevos**: `modules/rss/bluesky.py`, `tests/test_bluesky.py`,
+`scripts/diagnostico_bluesky.py`.
+**Archivos modificados**: `modules/rss/resolver.py`, `modules/rss/parser.py`,
+`modules/rss/handlers.py`, `docs/COMANDOS.md`, `version.txt`, este archivo.
+
+**Pendiente**: subir los archivos al VPS (Ersus prefirió manual esta vez, no
+git pull), correr `scripts/diagnostico_bluesky.py` para la validación en vivo, reiniciar
+el servicio (`systemctl restart taso-gcg` o el nombre configurado en `taso-gcg.service`)
+y probar `/addfeed` con un link de Bluesky real seguido de `/testfeed`.
