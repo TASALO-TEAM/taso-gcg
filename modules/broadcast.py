@@ -20,7 +20,7 @@ __mod_name__ = "Difusión"
 
 TOPIC = Topic("broadcast", "📣 Difusión TASALO", aliases=("difusion", "difusión"))
 COMMANDS = (
-    Cmd("broadcast", "Difundir a todos los chats oficiales (o respondiendo)", level="sudo", topic="broadcast", uso="<texto>"),
+    Cmd("broadcast", "Difundir a todos los chats oficiales (o respondiendo)", level="sudo", topic="broadcast", uso="<texto>", menu=True),
     Cmd("marcaroficial", "Marcar un chat como oficial", level="sudo", topic="broadcast", uso="[id]"),
     Cmd("desmarcaroficial", "Desmarcar un chat como oficial", level="sudo", topic="broadcast", uso="[id]"),
     Cmd("oficiales", "Listar los chats oficiales", level="sudo", topic="broadcast"),

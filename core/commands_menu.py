@@ -1,60 +1,48 @@
-"""Registro de comandos ante Telegram vía setMyCommands.
+"""Registro de comandos ante Telegram vía setMyCommands, generado desde el registro.
 
-Esto es justo lo que faltaba para que /help (y el resto) aparezcan en el menú
-"/" del cliente de Telegram. Importante: los comandos SIGUEN funcionando si
-se escriben a mano aunque no estén registrados aquí — esto solo controla el
-menú de sugerencias. Pero es la pieza que le da al bot esa sensación
-"profesional" de autocompletado, y create dudas del tipo "no me funciona"
-cuando en realidad el comando sí respondía, solo que no aparecía sugerido.
+El menú "/" ya no se mantiene a mano: sale de `Cmd(menu=True)` de cada módulo
+(core/registry.py). Los comandos SIGUEN funcionando si se escriben a mano aunque
+no estén en el menú; esto solo controla las sugerencias.
 
-Se usan dos scopes (esto es lo que en el plan original se llamó "command
-scopes" — resulta que SÍ se puede automatizar desde la API, no hace falta
-tocar BotFather a mano como se documentó por error en una primera versión
-del plan):
-- BotCommandScopeDefault: lo que ve cualquier persona en cualquier chat.
-- BotCommandScopeAllChatAdministrators: lo mismo + los comandos de moderación,
-  visible solo para quienes Telegram ya sabe que son admins de un chat.
+Cada scope de Telegram SUSTITUYE al anterior (no se suman), por eso cada lista se
+arma completa. Precedencia de Telegram (de más a menos específico):
+- BotCommandScopeChat (un SUDO en su privado: ve además lo de gestión TASALO)
+- BotCommandScopeAllChatAdministrators / BotCommandScopeAllPrivateChats
+- BotCommandScopeDefault (cualquiera en cualquier chat)
 """
 
-from telegram import BotCommand, BotCommandScopeAllChatAdministrators, BotCommandScopeDefault
+from telegram import (
+    BotCommand,
+    BotCommandScopeAllChatAdministrators,
+    BotCommandScopeAllPrivateChats,
+    BotCommandScopeChat,
+    BotCommandScopeDefault,
+)
 
-COMANDOS_PUBLICOS = [
-    BotCommand("start", "Iniciar / info del bot"),
-    BotCommand("help", "Menú de ayuda por temas"),
-    BotCommand("rules", "Ver las reglas del grupo"),
-    BotCommand("id", "ID del chat, o de un usuario si respondes a su mensaje"),
-    BotCommand("admins", "Ver administradores del chat"),
-    BotCommand("report", "Reportar un mensaje a los admins"),
-    BotCommand("myfeeds", "Ver los feeds RSS configurados aquí"),
-    BotCommand("notes", "Ver notas guardadas"),
-    BotCommand("warns", "Ver tus avisos"),
-]
+from core import registry
+from core.config import SUDO_USERS
+from utils.logger import log
 
-COMANDOS_ADMIN = COMANDOS_PUBLICOS + [
-    BotCommand("ban", "Banear (respondiendo a un mensaje)"),
-    BotCommand("tban", "Ban temporal: /tban 1h"),
-    BotCommand("kick", "Expulsar"),
-    BotCommand("mute", "Silenciar"),
-    BotCommand("tmute", "Silencio temporal: /tmute 30m"),
-    BotCommand("unban", "Desbanear"),
-    BotCommand("unmute", "Quitar silencio"),
-    BotCommand("warn", "Dar un aviso"),
-    BotCommand("promote", "Dar administrador"),
-    BotCommand("demote", "Quitar administrador"),
-    BotCommand("pin", "Fijar mensaje"),
-    BotCommand("unpin", "Desfijar"),
-    BotCommand("purge", "Borrar varios mensajes de una vez"),
-    BotCommand("lock", "Bloquear tipo de contenido"),
-    BotCommand("unlock", "Desbloquear"),
-    BotCommand("setrules", "Configurar las reglas"),
-    BotCommand("setwelcome", "Configurar la bienvenida"),
-    BotCommand("addfeed", "Añadir un feed RSS"),
-    BotCommand("approve", "Aprobar usuario (inmunidad)"),
-    BotCommand("fban", "Ban federado en todos los chats oficiales TASALO"),
-    BotCommand("connect", "Conectarse a un chat desde el PM"),
-]
+_SCOPES_GENERALES = (
+    ("default", BotCommandScopeDefault),
+    ("private", BotCommandScopeAllPrivateChats),
+    ("admins", BotCommandScopeAllChatAdministrators),
+)
 
 
-async def registrar_comandos(bot):
-    await bot.set_my_commands(COMANDOS_PUBLICOS, scope=BotCommandScopeDefault())
-    await bot.set_my_commands(COMANDOS_ADMIN, scope=BotCommandScopeAllChatAdministrators())
+def _botcommands(cmds, scope: str) -> list[BotCommand]:
+    return [BotCommand(nombre, desc) for nombre, desc in registry.menu_para(cmds, scope)]
+
+
+async def registrar_comandos(bot, cmds, sudo_users=SUDO_USERS):
+    """Publica los cuatro menús. Un SUDO que nunca abrió el bot da error de Telegram:
+    se anota y se sigue con el resto (no debe tumbar el arranque ni a los demás)."""
+    for scope, tg_scope in _SCOPES_GENERALES:
+        await bot.set_my_commands(_botcommands(cmds, scope), scope=tg_scope())
+
+    menu_sudo = _botcommands(cmds, "sudo")
+    for uid in sudo_users:
+        try:
+            await bot.set_my_commands(menu_sudo, scope=BotCommandScopeChat(chat_id=uid))
+        except Exception as e:
+            log(f"Menú SUDO no publicado para {uid} (¿nunca abrió el bot?): {e}", "warning")

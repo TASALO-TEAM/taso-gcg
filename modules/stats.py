@@ -26,7 +26,7 @@ __mod_name__ = "Estadísticas"
 
 TOPIC = Topic("stats", "📊 Estadísticas", aliases=("estadisticas", "estadísticas"))
 COMMANDS = (
-    Cmd("stats", "Estado del bot: memoria, chats, feeds", level="sudo", topic="stats"),
+    Cmd("stats", "Estado del bot: memoria, chats, feeds", level="sudo", topic="stats", menu=True),
 )
 
 _inicio = time.time()

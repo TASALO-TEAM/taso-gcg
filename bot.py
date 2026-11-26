@@ -28,7 +28,7 @@ async def post_init(application: Application):
     log(f"🚀 taso-gcg v{BOT_VERSION} arrancando con {len(cargados)} módulos")
 
     try:
-        await registrar_comandos(application.bot)
+        await registrar_comandos(application.bot, application.bot_data["cmds"])
         log("📋 Menú de comandos registrado ante Telegram (setMyCommands)")
     except Exception as e:
         log(f"No se pudo registrar el menú de comandos: {e}", "warning")
