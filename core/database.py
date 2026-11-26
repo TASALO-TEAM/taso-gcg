@@ -240,6 +240,48 @@ CREATE TABLE IF NOT EXISTS users (
     visto_en TEXT DEFAULT (datetime('now'))
 );
 CREATE INDEX IF NOT EXISTS idx_users_username ON users(username COLLATE NOCASE);
+
+-- Publicación automática (modules/publisher). Los secretos van CIFRADOS
+-- (core/secrets.py); la clave maestra no está en la base de datos.
+CREATE TABLE IF NOT EXISTS pub_cuentas (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    red TEXT NOT NULL,                       -- 'hive' | 'nostr'
+    nombre TEXT NOT NULL,                    -- cuenta de Hive o etiqueta de la identidad Nostr
+    activa INTEGER NOT NULL DEFAULT 1,
+    params_json TEXT NOT NULL DEFAULT '{}',  -- comunidad, tags, beneficiarios... (sin secretos)
+    secreto_cifrado TEXT,                    -- posting key / nsec, cifrado
+    UNIQUE(red, nombre)
+);
+CREATE TABLE IF NOT EXISTS pub_jobs (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    nombre TEXT NOT NULL UNIQUE,
+    fuente TEXT NOT NULL,                    -- 'year' | 'tspl'
+    hora INTEGER NOT NULL DEFAULT 8,
+    minuto INTEGER NOT NULL DEFAULT 30,
+    dias TEXT NOT NULL DEFAULT '*',          -- '*' o lista de 0-6 (lun=0) separada por comas
+    activo INTEGER NOT NULL DEFAULT 1,
+    params_json TEXT NOT NULL DEFAULT '{}'
+);
+CREATE TABLE IF NOT EXISTS pub_destinos (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    job_id INTEGER NOT NULL REFERENCES pub_jobs(id) ON DELETE CASCADE,
+    tipo TEXT NOT NULL,                      -- 'telegram' | 'hive_blog' | 'hive_wave' | 'hive_snap' | 'nostr'
+    cuenta_id INTEGER REFERENCES pub_cuentas(id) ON DELETE SET NULL,
+    activo INTEGER NOT NULL DEFAULT 1,
+    params_json TEXT NOT NULL DEFAULT '{}'   -- chat id, comunidad, tags (sin secretos)
+);
+CREATE TABLE IF NOT EXISTS pub_log (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    job_id INTEGER NOT NULL,
+    destino_id INTEGER NOT NULL,
+    fecha TEXT NOT NULL,                     -- día local de la publicación (YYYY-MM-DD)
+    estado TEXT NOT NULL,                    -- 'reservado' | 'ok' | 'error' | 'simulado'
+    url TEXT,
+    error TEXT,
+    intentos INTEGER NOT NULL DEFAULT 0,
+    creado TEXT NOT NULL DEFAULT (datetime('now')),
+    UNIQUE(job_id, destino_id, fecha)        -- idempotencia: una vez por día y destino
+);
 """
 
 

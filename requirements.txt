@@ -14,3 +14,4 @@ pytest
 pytest-asyncio
 websockets>=15,<18
 coincurve>=20,<22
+cryptography>=43,<48
