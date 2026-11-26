@@ -10,6 +10,7 @@ from bs4 import BeautifulSoup
 
 from modules.rss.parser import RSSParser
 from modules.rss.bluesky import BlueskyClient
+from modules.rss.nostr import NostrClient
 from utils.logger import log
 
 
@@ -25,6 +26,10 @@ class RSSResolver:
     @classmethod
     async def find_best_feed(cls, url):
         """Retorna: (resolved_url, title, error_msg)"""
+        if NostrClient.is_nostr_url(url):
+            # Antes de normalizar: "npub1…" no es un dominio y se rompería como https://npub1…
+            return await NostrClient.resolve(url)
+
         url = url.strip().rstrip("/")
         if not url.startswith("http"):
             url = f"https://{url}"

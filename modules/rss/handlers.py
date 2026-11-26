@@ -23,6 +23,7 @@ from utils.decorators import user_admin, group_only, is_user_admin
 from modules.rss.parser import RSSParser
 from modules.rss.resolver import RSSResolver
 from modules.rss.bluesky import BlueskyClient
+from modules.rss.nostr import NostrClient
 from modules.rss.monitor import RSSMonitor
 from modules.rss.nitter_watch import check_nitter_recovery
 from modules.connection import get_connected_chat_id
@@ -30,7 +31,7 @@ from core.registry import Cmd, Topic
 
 __mod_name__ = "RSS"
 
-TOPIC = Topic("rss", "📰 RSS", aliases=("feed", "feeds", "noticias", "traducir", "traduccion", "traducción"), nota="Acepta RSS genérico, perfiles de X/Twitter y de Bluesky. El #n de cada feed es propio del chat.")
+TOPIC = Topic("rss", "📰 RSS", aliases=("feed", "feeds", "noticias", "traducir", "traduccion", "traducción"), nota="Acepta RSS genérico, perfiles de X/Twitter, de Bluesky y cuentas de Nostr (npub, nombre@dominio). El #n de cada feed es propio del chat.")
 COMMANDS = (
     Cmd("addfeed", "Añadir un feed RSS", level="admin", topic="rss", menu=True),
     Cmd("myfeeds", "Ver y gestionar los feeds de este chat", level="admin", topic="rss", menu=True),
@@ -125,7 +126,8 @@ async def addfeed_url(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     es_x = RSSParser.is_social_source(resolved_url) or RSSParser.is_social_source(url)
     es_bsky = BlueskyClient.is_bluesky_url(resolved_url) or BlueskyClient.is_bluesky_url(url)
-    es_social = es_x or es_bsky
+    es_nostr = NostrClient.is_nostr_url(resolved_url) or NostrClient.is_nostr_url(url)
+    es_social = es_x or es_bsky or es_nostr
 
     # Si es X/Twitter (o espejo Nitter) o Bluesky, la opción "social" va
     # primero porque es la recomendada: en estas fuentes el texto del post
@@ -145,6 +147,11 @@ async def addfeed_url(update: Update, context: ContextTypes.DEFAULT_TYPE):
     elif es_bsky:
         aviso_extra = (
             "\n🦋 Parece una fuente de Bluesky — te recomiendo el estilo "
+            "<b>Social (sin repetir texto)</b>."
+        )
+    elif es_nostr:
+        aviso_extra = (
+            "\n🟣 Parece una cuenta de Nostr — te recomiendo el estilo "
             "<b>Social (sin repetir texto)</b>."
         )
     else:

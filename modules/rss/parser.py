@@ -16,6 +16,7 @@ from curl_cffi.requests import AsyncSession
 from bs4 import BeautifulSoup
 
 from modules.rss.bluesky import BlueskyClient
+from modules.rss.nostr import NostrClient
 from utils.logger import log
 
 
@@ -385,6 +386,8 @@ class RSSParser:
 
     @classmethod
     async def parse(cls, url):
+        if NostrClient.is_nostr_url(url):
+            return await NostrClient.parse(url)  # websockets, no HTTP: mismo contrato
         if BlueskyClient.is_bluesky_url(url):
             # Fuente JSON (AT Protocol), no XML — feedparser no aplica acá.
             # BlueskyClient.parse() ya devuelve el mismo contrato

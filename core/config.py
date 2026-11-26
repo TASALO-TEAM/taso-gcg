@@ -49,6 +49,16 @@ GROQ_API_KEY = os.getenv("GROQ_API_KEY")
 GROQ_API_KEYS: list[str] = _parse_key_list(GROQ_API_KEY)
 GROQ_MODEL = os.getenv("GROQ_MODEL", "openai/gpt-oss-120b")
 
+# --- Nostr (solo lectura, modules/rss/nostr.py) ---
+# Relays separados por coma, solo wss://. Cada ciclo de un feed abre una
+# conexión corta a cada uno, así que pocos y fiables: 3 es el punto medio
+# (si uno cae, los otros cubren; más relays = más conexiones por feed).
+NOSTR_RELAYS: list[str] = [
+    r.strip() for r in os.getenv(
+        "NOSTR_RELAYS", "wss://nos.lol,wss://relay.primal.net,wss://offchain.pub"
+    ).split(",") if r.strip().startswith("wss://")
+]
+
 # --- Rutas ---
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DATA_DIR = os.path.join(BASE_DIR, "data")

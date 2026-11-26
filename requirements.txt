@@ -12,3 +12,5 @@ tenacity
 psutil
 pytest
 pytest-asyncio
+websockets>=15,<18
+coincurve>=20,<22

@@ -184,4 +184,4 @@ Si ves un mensaje con 🤖, es una frase corta generada con IA (Groq) que explic
 | 🔒 `/rmfeed <#feed>` | Eliminar un feed |
 | 🔒 `/testfeed <#feed>` | Enviar ahora la noticia más reciente |
 
-Acepta RSS genérico, perfiles de X/Twitter y de Bluesky. El #n de cada feed es propio del chat.
+Acepta RSS genérico, perfiles de X/Twitter, de Bluesky y cuentas de Nostr (npub, nombre@dominio). El #n de cada feed es propio del chat.
