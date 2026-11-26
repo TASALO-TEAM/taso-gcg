@@ -177,17 +177,17 @@ async def borrar_cuenta(cuenta_id: int) -> None:
 
 
 # ---------- registro idempotente ----------
-async def reservar(job_id: int, destino_id: int, fecha: str) -> bool:
+async def reservar(job_id: int, destino_id: int, fecha: str, max_intentos: int = 3) -> bool:
     """Reserva (job, destino, día). True = esta llamada debe publicar.
-    Un intento previo en 'error' se puede reintentar; 'ok', 'simulado' o
-    'reservado' (otra ejecución en curso o caída a medias) no se repiten solos."""
+    Un intento previo en 'error' se puede reintentar hasta `max_intentos`; 'ok',
+    'simulado' o 'reservado' (otra ejecución en curso o caída a medias) no se repiten solos."""
     async with db._lock:
         conn = db._conn
         await conn.execute(
             "INSERT INTO pub_log(job_id, destino_id, fecha, estado, intentos) VALUES(?,?,?,'reservado',1) "
             "ON CONFLICT(job_id, destino_id, fecha) DO UPDATE SET estado='reservado', intentos=intentos+1, error=NULL "
-            "WHERE pub_log.estado='error'",
-            (job_id, destino_id, fecha),
+            "WHERE pub_log.estado='error' AND pub_log.intentos < ?",
+            (job_id, destino_id, fecha, max_intentos),
         )
         cur = await conn.execute("SELECT changes()")
         cambios = (await cur.fetchone())[0]
@@ -200,6 +200,11 @@ async def marcar(job_id: int, destino_id: int, fecha: str, estado: str, url: str
         "UPDATE pub_log SET estado = ?, url = ?, error = ? WHERE job_id = ? AND destino_id = ? AND fecha = ?",
         (estado, url, (error or "")[:500] or None, job_id, destino_id, fecha),
     )
+
+
+async def intentos(job_id: int, destino_id: int, fecha: str) -> int:
+    f = await db.fetchone("SELECT intentos FROM pub_log WHERE job_id = ? AND destino_id = ? AND fecha = ?", (job_id, destino_id, fecha))
+    return f["intentos"] if f else 0
 
 
 async def historial(job_id: int | None = None, limite: int = 20) -> list[dict]:

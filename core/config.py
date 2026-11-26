@@ -59,6 +59,11 @@ NOSTR_RELAYS: list[str] = [
     ).split(",") if r.strip().startswith("wss://")
 ]
 
+# --- Publicación automática (modules/publisher) ---
+# Arranca en modo prueba: arma y registra lo que publicaría, sin enviar nada.
+# Pon PUB_DRY_RUN=0 en .env para publicar de verdad (el panel /pub lo hará editable).
+PUB_DRY_RUN: bool = os.getenv("PUB_DRY_RUN", "1") != "0"
+
 # --- Rutas ---
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DATA_DIR = os.path.join(BASE_DIR, "data")

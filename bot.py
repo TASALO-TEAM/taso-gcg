@@ -63,9 +63,10 @@ async def on_error(update, context: ContextTypes.DEFAULT_TYPE):
 
 
 async def post_shutdown(application: Application):
-    scheduler = application.bot_data.get("rss_scheduler")
-    if scheduler:
-        scheduler.shutdown(wait=False)
+    for clave in ("rss_scheduler", "pub_scheduler"):
+        scheduler = application.bot_data.get(clave)
+        if scheduler:
+            scheduler.shutdown(wait=False)
     await db.close()
     log("👋 taso-gcg detenido limpiamente.")
 
