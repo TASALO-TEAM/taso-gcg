@@ -21,6 +21,7 @@ en la tabla feeds.
 """
 
 import hashlib
+import html
 from urllib.parse import urlparse
 
 import httpx
@@ -161,9 +162,12 @@ class BlueskyClient:
             identidad = uri or f"{handle}|{texto}"
 
             return {
-                "title": texto,
+                # El monitor mete title/description sin escapar en una plantilla
+                # con parse_mode=HTML: un "<" o "&" del post hacía fallar el envío
+                # (y se reintentaba siempre). Se escapa aquí, en el origen.
+                "title": html.escape(texto, quote=False),
                 "link": link,
-                "description": texto,
+                "description": html.escape(texto, quote=False),
                 "image": image,
                 # Bluesky sirve el video como HLS (m3u8 + segmentos), no como
                 # mp4 directo — bot.send_video necesita una URL de archivo

@@ -71,3 +71,16 @@ def test_extrae_miniatura_de_embed_de_video():
 
 def test_sin_embed_no_rompe():
     assert BlueskyClient._extract_media(None) == (None, None)
+
+
+def test_post_con_html_se_escapa_para_el_envio():
+    post = {
+        "uri": "at://did:plc:xyz/app.bsky.feed.post/3labc999",
+        "author": {"handle": "watcher.guru"},
+        "record": {"text": "BTC < 100k & ETH > 4k <b>ya</b>"},
+        "embed": None,
+    }
+    entry = BlueskyClient._post_to_entry(post)
+    esperado = "BTC &lt; 100k &amp; ETH &gt; 4k &lt;b&gt;ya&lt;/b&gt;"
+    assert entry["title"] == esperado
+    assert entry["description"] == esperado
