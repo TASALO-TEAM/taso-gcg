@@ -19,8 +19,33 @@ from core.database import db
 from modules.rss.parser import RSSParser
 from utils.logger import log
 
-_ok_previo: set[str] = set()
-_primera_pasada = True
+_ok_previo: set[str] = set()  # solo para el log: instancia suelta que sube/baja NO avisa
+
+# Estado del pool: "sano" (>=1 instancia responde) o "caido" (ninguna). Se avisa
+# solo al CONFIRMAR un cambio de estado (CONFIRMACIONES pasadas seguidas iguales),
+# no por cada instancia que vuelve: con instancias intermitentes eso era ruido.
+CONFIRMACIONES = 2
+_estado_confirmado: str | None = None
+_estado_pendiente: str | None = None
+_contador = 0
+
+
+def _registrar_pasada(estado_ahora: str) -> str | None:
+    """Devuelve el nuevo estado si hubo un cambio real que avisar; si no, None.
+    La primera confirmación tras arrancar solo fija la base (sin aviso)."""
+    global _estado_confirmado, _estado_pendiente, _contador
+    if estado_ahora == _estado_confirmado:
+        _estado_pendiente, _contador = None, 0
+        return None
+    if estado_ahora == _estado_pendiente:
+        _contador += 1
+    else:
+        _estado_pendiente, _contador = estado_ahora, 1
+    if _contador < CONFIRMACIONES:
+        return None
+    previo, _estado_confirmado = _estado_confirmado, estado_ahora
+    _estado_pendiente, _contador = None, 0
+    return estado_ahora if previo is not None else None
 
 
 async def _elegir_usuario_de_prueba() -> str | None:
@@ -56,22 +81,24 @@ async def check_nitter_recovery(bot):
     recien_recuperadas = ok_ahora - _ok_previo
     _ok_previo.clear()
     _ok_previo.update(ok_ahora)
+    if recien_recuperadas:
+        log(f"Nitter: instancia(s) recuperada(s): {sorted(recien_recuperadas)}", "info")
 
-    if _primera_pasada:
-        # No avisar en el primer chequeo tras un arranque del proceso: no
-        # sabemos si esto ya venía funcionando de antes, así que este ciclo
-        # solo establece la base para comparar contra el siguiente.
-        _primera_pasada = False
+    cambio = _registrar_pasada("sano" if ok_ahora else "caido")
+    if not cambio or not LOG_CHAT_ID:
         return
 
-    if not recien_recuperadas or not LOG_CHAT_ID:
-        return
-
-    lista = "\n".join(f"• {i}" for i in sorted(recien_recuperadas))
-    try:
-        await bot.send_message(
-            LOG_CHAT_ID,
-            f"🟢 Instancia(s) Nitter recuperada(s) (probado con @{usuario}):\n{lista}",
+    if cambio == "sano":
+        texto = (
+            f"🟢 Nitter vuelve a responder ({len(ok_ahora)}/{len(RSSParser.NITTER_INSTANCES)} "
+            f"instancias, probado con @{usuario}). Las fuentes de X se reanudan solas."
         )
+    else:
+        texto = (
+            "🔴 Ninguna instancia Nitter responde desde hace varios chequeos: las fuentes de "
+            "X/Twitter no se actualizarán hasta que alguna vuelva."
+        )
+    try:
+        await bot.send_message(LOG_CHAT_ID, texto)
     except Exception as e:
-        log(f"No se pudo notificar recuperación de Nitter: {e}", "warning")
+        log(f"No se pudo notificar el estado de Nitter: {e}", "warning")
