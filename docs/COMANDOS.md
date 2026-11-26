@@ -1,176 +1,186 @@
 # Comandos de taso-gcg
 
+> Archivo generado por `python -m scripts.gen_comandos` desde el registro de comandos.
+> No lo edites a mano: cambia `COMMANDS`/`TOPIC` en el módulo y vuelve a generarlo.
+
 Convención: 🔒 = requiere ser admin del chat · 👑 = solo SUDO_USERS (equipo TASALO) · sin marca = cualquiera.
 
 Nota: todo comando marcado "(respondiendo)" también acepta `@usuario` como alternativa
 (ej. `/ban @fulano`), siempre que esa persona ya haya escrito al menos un mensaje en algún
-chat donde esté el bot — Telegram no deja resolver un @usuario al que el bot nunca le haya
+chat donde esté el bot - Telegram no deja resolver un @usuario al que el bot nunca le haya
 visto un mensaje, así que si no funciona no es un bug, es que el bot todavía no lo conoce.
 
 ## Inicio (`start.py`)
 | Comando | Descripción |
 |---|---|
-| `/start` | En privado: presentación del bot. En grupo: confirma que está activo |
-| `/help` | Menú de ayuda por temas (con botones). `/help <tema>` va directo a un tema |
+| `/start` | Iniciar / info del bot |
+| `/help [tema]` | Menú de ayuda por temas |
 
 ## Administración (`admin.py`)
 | Comando | Descripción |
 |---|---|
-| `/promote` (respondiendo) | 🔒 Promueve a un usuario a admin |
-| `/demote` (respondiendo) | 🔒 Quita privilegios de admin |
-| `/pin` (respondiendo) | 🔒 Fija el mensaje. `/pin silent` para no notificar |
-| `/unpin` | 🔒 Desfija (el mensaje respondido, o todos si no se responde a nada) |
-| `/purge` (respondiendo) | 🔒 Borra desde el mensaje respondido hasta el comando |
-| `/title` | Muestra nombre/ID/tipo del chat |
-| `/id` | Sin nada: tu info + la del chat actual. Respondiendo: info de quien mandó ese mensaje (y del canal de origen si era un reenvío). `/id @usuario` o `/id <id>`: info de ese usuario o chat |
-| `/admins` | Lista los administradores del chat |
+| 🔒 `/promote` | Dar administrador (respondiendo) |
+| 🔒 `/demote` | Quitar administrador (respondiendo) |
+| 🔒 `/pin [silent]` | Fijar mensaje (respondiendo) |
+| 🔒 `/unpin` | Desfijar (todos si no respondes a nada) |
+| 🔒 `/purge` | Borra desde el mensaje respondido hasta ahora |
+| `/title` | Nombre, ID y tipo del chat |
+| `/id [@usuario\|id]` | ID del chat, o de un usuario si respondes a su mensaje |
+| `/admins` | Ver administradores del chat |
 
-## Bans (`bans.py`)
+## Bans y silencios (`bans.py`)
 | Comando | Descripción |
 |---|---|
-| `/ban` (respondiendo) `[motivo]` | 🔒 Banea permanentemente |
-| `/tban <1h\|30m\|1d> [motivo]` | 🔒 Ban temporal |
-| `/unban` (respondiendo) | 🔒 Revierte un ban |
-| `/kick` (respondiendo) | 🔒 Expulsa (puede volver a entrar) |
-| `/mute` / `/tmute <duración>` | 🔒 Silencia permanente / temporal |
-| `/unmute` | 🔒 Restaura permisos de hablar |
+| 🔒 `/ban [motivo]` | Banear (respondiendo a un mensaje) |
+| 🔒 `/tban <1h\|30m\|1d> [motivo]` | Ban temporal |
+| 🔒 `/unban` | Desbanear |
+| 🔒 `/kick` | Expulsar (puede volver a entrar) |
+| 🔒 `/mute` | Silenciar |
+| 🔒 `/tmute <1h\|30m\|1d>` | Silencio temporal |
+| 🔒 `/unmute` | Quitar silencio |
 
 ## Avisos (`warns.py`)
 | Comando | Descripción |
 |---|---|
-| `/warn` (respondiendo) `[motivo]` | 🔒 Suma un aviso; al llegar al límite aplica la acción configurada |
-| `/warns` (respondiendo, opcional) | Ver avisos de un usuario (o los tuyos) |
-| `/resetwarns` (respondiendo) | 🔒 Limpia los avisos de un usuario |
-| `/setwarnlimit <n>` | 🔒 Cambia el límite de avisos del chat |
+| 🔒 `/warn [motivo]` | Dar un aviso |
+| `/warns` | Ver tus avisos (o los de quien respondes) |
+| 🔒 `/resetwarns` | Limpiar los avisos de un usuario |
+| 🔒 `/setwarnlimit <n>` | Límite de avisos antes de sancionar |
 
 ## AntiFlood (`antiflood.py`)
 | Comando | Descripción |
 |---|---|
-| `/setflood <n>` | 🔒 Más de *n* mensajes en 10s dispara la acción (0 desactiva) |
-| `/setfloodaction <mute\|kick\|ban>` | 🔒 Qué hacer cuando se dispara |
+| 🔒 `/setflood <n>` | Más de n mensajes en 10s dispara la acción (0 = off) |
+| 🔒 `/setfloodaction <mute\|kick\|ban>` | Acción al detectar flood |
 
-## Locks (`locks.py`)
+## Bloqueos de contenido (`locks.py`)
 | Comando | Descripción |
 |---|---|
-| `/lock <tipo>` / `/unlock <tipo>` | 🔒 Bloquea/desbloquea: stickers, links, forwards, photos, videos, documents, voice, polls, games, inlinebots |
+| 🔒 `/lock <tipo>` | Bloquear tipo de contenido |
+| 🔒 `/unlock <tipo>` | Desbloquear tipo de contenido |
 | `/locks` | Ver bloqueos activos |
+
+Tipos: stickers, links, forwards, photos, videos, documents, voice, polls, games, inlinebots
 
 ## Lista negra (`blacklist.py`)
 | Comando | Descripción |
 |---|---|
-| `/addblacklist <palabra> [delete\|warn\|ban]` | 🔒 Añade palabra prohibida |
-| `/rmblacklist <palabra>` | 🔒 Quita palabra |
-| `/blacklist` | Ver lista negra del chat |
+| 🔒 `/addblacklist <palabra> [delete\|warn\|ban]` | Añadir palabra prohibida |
+| 🔒 `/rmblacklist <palabra>` | Quitar palabra de la lista negra |
+| `/blacklist` | Ver la lista negra del chat |
 
-## Filtros (`filters.py`)
+## Filtros (auto-respuestas) (`filters.py`)
 | Comando | Descripción |
 |---|---|
-| `/filter <disparador> <respuesta>` | 🔒 Respuesta automática cuando alguien escribe esa palabra |
-| `/stop <disparador>` | 🔒 Elimina un filtro |
+| 🔒 `/filter <palabra> <respuesta>` | Respuesta automática a una palabra |
+| 🔒 `/stop <palabra>` | Eliminar un filtro |
 | `/filters` | Ver filtros activos |
 
 ## Notas (`notes.py`)
 | Comando | Descripción |
 |---|---|
-| `/save <nombre> <contenido>` (o respondiendo) | 🔒 Guarda una nota |
-| `/get <nombre>` o `#nombre` | Muestra la nota |
-| `/clear <nombre>` | 🔒 Elimina una nota |
-| `/notes` | Lista las notas del chat |
+| 🔒 `/save <nombre> <contenido>` | Guardar una nota (o respondiendo) |
+| `/get <nombre>` | Mostrar una nota (también #nombre) |
+| 🔒 `/clear <nombre>` | Eliminar una nota |
+| `/notes` | Ver notas guardadas |
 
 ## Bienvenida (`welcome.py`)
 | Comando | Descripción |
 |---|---|
-| `/setwelcome <texto>` / `/setgoodbye <texto>` | 🔒 Placeholders: `{mencion}` `{nombre}` `{chat}` |
-| `/welcome on\|off` | 🔒 Activa/desactiva la bienvenida |
+| 🔒 `/setwelcome <texto>` | Configurar la bienvenida |
+| 🔒 `/setgoodbye <texto>` | Configurar la despedida |
+| 🔒 `/welcome on\|off` | Activar o desactivar la bienvenida |
+
+Placeholders: {mencion} {nombre} {chat}
 
 ## Reglas (`rules.py`)
 | Comando | Descripción |
 |---|---|
-| `/rules` | Muestra las reglas |
-| `/setrules <texto>` | 🔒 Configura las reglas |
+| `/rules` | Ver las reglas del grupo |
+| 🔒 `/setrules <texto>` | Configurar las reglas |
 
 ## Reportes (`reporting.py`)
 | Comando | Descripción |
 |---|---|
-| `/report` (respondiendo) | Notifica a los admins del chat sobre ese mensaje |
+| `/report` / `/reportar` | Reportar un mensaje a los admins (respondiendo) |
 
 ## Aprobaciones (`approvals.py`)
 | Comando | Descripción |
 |---|---|
-| `/approve` (respondiendo) `[motivo]` | 🔒 Inmuniza a un usuario ante antiflood/blacklist/locks |
-| `/approval` (respondiendo) | Consulta si un usuario está aprobado |
-| `/approved` | Lista los usuarios aprobados |
-| `/unapprove` (respondiendo) | 🔒 Quita la aprobación |
-| `/unapproveall` | 👑 Quita todas las aprobaciones del chat |
+| 🔒 `/approve [motivo]` | Aprobar usuario (inmunidad) |
+| `/approval` | Consultar si un usuario está aprobado |
+| `/approved` | Listar usuarios aprobados |
+| 🔒 `/unapprove` | Quitar la aprobación |
+| 👑 `/unapproveall` | Quitar todas las aprobaciones del chat |
+
+Un usuario aprobado es inmune a antiflood, lista negra y locks.
 
 ## Federación TASALO (`federation.py`)
 | Comando | Descripción |
 |---|---|
-| `/fban` (respondiendo) `[motivo]` | 🔒 Banea en TODOS los chats oficiales TASALO a la vez |
-| `/funban` (respondiendo) | 🔒 Revierte el ban en todos los chats oficiales |
-| `/fbanlist` | 👑 Lista de baneados de la federación |
+| 🔒 `/fban [motivo]` | Ban federado en todos los chats oficiales TASALO |
+| 🔒 `/funban` | Revertir el ban federado |
+| 👑 `/fbanlist` | Lista de baneados de la federación |
 
 ## Log de administración (`log_channel.py`)
 | Comando | Descripción |
 |---|---|
-| `/setlog` (en el canal) | 👑 Vincula un canal como log; reenvía el mensaje de confirmación al grupo |
-| `/unsetlog` | 🔒 Desvincula el canal de log |
-| `/logchannel` | Muestra el canal de log actual y sus categorías |
-| `/log <categorías>` / `/nolog <categorías>` | 🔒 Activa/desactiva categorías: settings, admin, user, automated, reports, other |
+| 👑 `/setlog` | Vincular el canal de log (enviar en el canal) |
+| 🔒 `/unsetlog` | Desvincular el canal de log |
+| `/logchannel` | Ver el canal de log y sus categorías |
+| 🔒 `/log <categorías>` | Activar categorías de log |
+| 🔒 `/nolog <categorías>` | Desactivar categorías de log |
 
-Quién manda qué a cada categoría:
-- **admin** — `bans.py`: ban/tban/kick/mute/tmute/unban/unmute (comandos manuales).
-- **user** — `warns.py`: un `/warn` normal que no llega al límite.
-- **automated** — acciones que el bot aplica solo, sin que nadie escriba un comando:
-  `antiflood.py` (flood), `blacklist.py` (palabra prohibida con `warn`/`ban`), `warns.py`
-  (cuando el aviso llega al límite y dispara la sanción).
-
-Los mensajes con 🤖 son una frase corta generada con IA (Groq) que explica el motivo de
-una acción de la categoría `automated` — se manda aparte, después, y nunca decide nada;
-solo aparece si el bot tiene `GROQ_API_KEY` configurada (ver `.env.example`), si no,
-el log normal sigue llegando igual, solo sin esa frase extra.
+Categorías: settings, admin, user, automated, reports, other.
+• admin: tus /ban /mute /kick manuales, etc.
+• automated: acciones que el bot aplica solo (antiflood, lista negra, límite de avisos).
+Si ves un mensaje con 🤖, es una frase corta generada con IA (Groq) que explica el motivo de una acción automática: nunca decide nada, solo la explica después de aplicada. Sin GROQ_API_KEY esos mensajes no aparecen (el log normal sí).
 
 ## Deshabilitar comandos (`disabling.py`)
 | Comando | Descripción |
 |---|---|
-| `/disable <cmd>` / `/enable <cmd>` | 🔒 Desactiva/reactiva un comando para usuarios normales |
-| `/disabled` | Ver comandos desactivados en el chat |
+| 🔒 `/disable <cmd>` | Desactivar un comando para usuarios normales |
+| 🔒 `/enable <cmd>` | Reactivar un comando |
+| `/disabled` | Ver comandos desactivados |
 | `/disableable` | Ver qué comandos se pueden desactivar |
-| `/disabledel on\|off` | 🔒 Borrar el mensaje del comando desactivado |
-| `/disableadmin on\|off` | 🔒 Si se activa, ni los admins pueden usar el comando desactivado |
+| 🔒 `/disabledel on\|off` | Borrar el mensaje del comando desactivado |
+| 🔒 `/disableadmin on\|off` | Aplicar la desactivación también a admins |
 
 ## Solicitudes de ingreso (`join_requests.py`)
 | Comando | Descripción |
 |---|---|
-| `/joincaptcha on\|off` | 🔒 Exige confirmar con un botón antes de aprobar el ingreso |
+| 🔒 `/joincaptcha on\|off` | Exigir botón de confirmación al ingresar |
 
-## Conexiones (`connection.py`)
+## Conexión remota (`connection.py`)
 | Comando | Descripción |
 |---|---|
-| `/connect <@usuario \| id_chat>` (en PM) | Gestiona un chat sin escribir ahí (requiere ser admin de ese chat). Acepta @usuario si el canal/grupo es público, o el ID si es privado. Cada conexión exitosa queda guardada en tu historial |
-| `/connection` | Sin argumentos: lista los chats a los que ya te conectaste antes, con botones, marcando "✅" el activo ahora mismo. `/connection <n>` o el botón: cambia a ese chat de la lista y muestra su detalle |
-| `/disconnect` | Cierra la conexión activa |
+| `/connect <@usuario\|id_chat>` | Gestionar un chat desde el privado |
+| `/connection [n]` | Ver y cambiar tus chats conectados |
+| `/disconnect` | Cerrar la conexión activa |
 
-## Difusión (`broadcast.py`)
+## Difusión TASALO (`broadcast.py`)
 | Comando | Descripción |
 |---|---|
-| `/broadcast <texto>` (o respondiendo) | 👑 Difunde a todos los chats oficiales TASALO |
-| `/marcaroficial [id]` / `/desmarcaroficial [id]` | 👑 Marca/desmarca el chat actual (o el ID indicado) como oficial |
-| `/oficiales` | 👑 Lista los chats oficiales TASALO |
+| 👑 `/broadcast <texto>` | Difundir a todos los chats oficiales (o respondiendo) |
+| 👑 `/marcaroficial [id]` | Marcar un chat como oficial |
+| 👑 `/desmarcaroficial [id]` | Desmarcar un chat como oficial |
+| 👑 `/oficiales` | Listar los chats oficiales |
 
 ## Estadísticas (`stats.py`)
 | Comando | Descripción |
 |---|---|
-| `/stats` | 👑 Estado del bot: memoria, CPU, chats gestionados, feeds, avisos |
+| 👑 `/stats` | Estado del bot: memoria, chats, feeds |
 
 ## RSS (`rss/handlers.py`)
 | Comando | Descripción |
 |---|---|
-| `/addfeed` | 🔒 Inicia el asistente para añadir un feed al chat actual (o al conectado vía `/connect`). Acepta un RSS genérico, un link de X/Twitter o un link de perfil de Bluesky (`bsky.app/profile/...`). El número que le toca (`#n`) es propio de ese chat y reutiliza huecos dejados por feeds eliminados |
-| `/myfeeds` | Lista los feeds del chat (numerados `#n`, propio del chat) con botones para pausar/cambiar estilo/eliminar |
-| `/setinterval <#feed> <min>` | 🔒 Cambia cada cuánto se revisa un feed |
-| `/setstyle <#feed> <bitbread\|texto\|social>` | 🔒 Cambia el formato de publicación. `social` es para fuentes de X/Twitter o Bluesky: muestra solo el texto del post una vez (sin repetir título+descripción) |
-| `/setrhash <#feed> <rhash\|none>` | 🔒 Plantilla de Instant View del feed |
-| `/settranslate <#feed> <on\|off>` | 🔒 Traduce título/descripción con IA antes de publicar (requiere `GROQ_API_KEY`) |
-| `/rmfeed <#feed>` | 🔒 Elimina un feed |
-| `/testfeed <#feed>` | 🔒 Manda la noticia más reciente sin esperar el intervalo |
+| 🔒 `/addfeed` | Añadir un feed RSS |
+| 🔒 `/myfeeds` | Ver y gestionar los feeds de este chat |
+| 🔒 `/setinterval <#feed> <min>` | Cada cuántos minutos se revisa un feed |
+| 🔒 `/setstyle <#feed> <bitbread\|texto\|social>` | Formato de publicación |
+| 🔒 `/setrhash <#feed> <rhash\|none>` | Plantilla de Instant View |
+| 🔒 `/settranslate <#feed> <on\|off>` | Traducir con IA antes de publicar (requiere Groq) |
+| 🔒 `/rmfeed <#feed>` | Eliminar un feed |
+| 🔒 `/testfeed <#feed>` | Enviar ahora la noticia más reciente |
+
+Acepta RSS genérico, perfiles de X/Twitter y de Bluesky. El #n de cada feed es propio del chat.
