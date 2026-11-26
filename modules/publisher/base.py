@@ -31,6 +31,7 @@ class Resultado:
 Fuente = Callable[[], Awaitable[Contenido]]
 Destino = Callable[..., Awaitable[Resultado]]
 
+CTX: dict = {}   # recursos compartidos que pone register(): {"bot": telegram.Bot}
 FUENTES: dict[str, Fuente] = {}
 DESTINOS: dict[str, Destino] = {}
 

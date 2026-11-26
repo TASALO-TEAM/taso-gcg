@@ -63,6 +63,8 @@ NOSTR_RELAYS: list[str] = [
 # Arranca en modo prueba: arma y registra lo que publicaría, sin enviar nada.
 # Pon PUB_DRY_RUN=0 en .env para publicar de verdad (el panel /pub lo hará editable).
 PUB_DRY_RUN: bool = os.getenv("PUB_DRY_RUN", "1") != "0"
+# taso-api (fuente "estado del año"). En el VPS corre en el mismo equipo.
+TASO_API_URL = os.getenv("TASO_API_URL", "http://localhost:8040")
 
 # --- Rutas ---
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
