@@ -211,3 +211,34 @@ async def historial(job_id: int | None = None, limite: int = 20) -> list[dict]:
     if job_id is None:
         return await db.fetchall("SELECT * FROM pub_log ORDER BY id DESC LIMIT ?", (limite,))
     return await db.fetchall("SELECT * FROM pub_log WHERE job_id = ? ORDER BY id DESC LIMIT ?", (job_id, limite))
+
+
+
+# ---------- modo prueba (editable desde /pub; el .env solo da el valor inicial) ----------
+async def modo_prueba(por_defecto: bool = True) -> bool:
+    f = await db.fetchone("SELECT valor FROM meta WHERE clave = 'pub_dry_run'")
+    return por_defecto if f is None else f["valor"] != "0"
+
+
+async def set_modo_prueba(activo: bool) -> None:
+    await db.execute(
+        "INSERT INTO meta(clave, valor) VALUES('pub_dry_run', ?) ON CONFLICT(clave) DO UPDATE SET valor = excluded.valor",
+        ("1" if activo else "0",),
+    )
+
+
+# ---------- consultas para el panel ----------
+async def get_destino(destino_id: int) -> dict | None:
+    f = await db.fetchone("SELECT * FROM pub_destinos WHERE id = ?", (destino_id,))
+    if f:
+        f["params"] = _params(f["params_json"])
+    return f
+
+
+async def log_de(job_id: int, fecha: str) -> list[dict]:
+    """Resultado por destino de una ejecución concreta (la clave de día usada)."""
+    return await db.fetchall(
+        "SELECT l.estado, l.url, l.error, d.tipo FROM pub_log l JOIN pub_destinos d ON d.id = l.destino_id "
+        "WHERE l.job_id = ? AND l.fecha = ? ORDER BY d.id",
+        (job_id, fecha),
+    )

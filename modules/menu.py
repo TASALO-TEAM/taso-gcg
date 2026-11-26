@@ -33,7 +33,7 @@ SECCIONES = (
     ("cont", "📝 Contenido", ("filters", "notes", "welcome", "rules")),
     ("rss", "📰 RSS", ("rss",)),
     ("conn", "🔗 Conexión", ("connection",)),
-    ("tasalo", "🌐 TASALO", ("federation", "broadcast", "stats")),
+    ("tasalo", "🌐 TASALO", ("federation", "broadcast", "stats", "pub")),
 )
 # Temas que no son una sección: se llega a ellos por otro lado (/help, /start).
 FUERA_DE_SECCIONES = {"inicio"}

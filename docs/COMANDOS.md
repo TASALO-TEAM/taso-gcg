@@ -172,6 +172,14 @@ Si ves un mensaje con 🤖, es una frase corta generada con IA (Groq) que explic
 |---|---|
 | 👑 `/stats` | Estado del bot: memoria, chats, feeds |
 
+## Publicación automática (`pub.py`)
+| Comando | Descripción |
+|---|---|
+| 👑 `/pub` | Panel de publicación automática (horas, destinos, pruebas) |
+| 👑 `/pubdest <id_trabajo> <@canal\|id>` | Añadir un canal de Telegram como destino de un trabajo |
+
+Solo para el equipo TASALO y por privado. Empieza en modo prueba: arma lo que publicaría sin enviar nada hasta que lo desactives en el panel.
+
 ## RSS (`rss/handlers.py`)
 | Comando | Descripción |
 |---|---|

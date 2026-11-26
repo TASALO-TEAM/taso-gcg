@@ -30,7 +30,7 @@ CB_PREFIX = "help:"
 ORDEN_TEMAS = (
     "inicio", "admin", "bans", "warns", "antiflood", "locks", "blacklist", "filters", "notes",
     "welcome", "rules", "reporting", "approvals", "federation", "log", "disabling", "join",
-    "connection", "broadcast", "stats", "rss",
+    "connection", "broadcast", "stats", "pub", "rss",
 )
 
 

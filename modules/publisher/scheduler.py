@@ -120,10 +120,13 @@ async def tick(bot=None, ahora: datetime | None = None) -> None:
     """Job periódico de APScheduler (cada 60 s)."""
     ahora = ahora or datetime.now(TZ)
     fecha = ahora.date().isoformat()
+    simular = None                         # se lee de la base solo si hay algo que publicar
     for job in await store.listar_jobs(solo_activos=True):
         if not toca(job, ahora):
             continue
         try:
-            await ejecutar_job(job, fecha, bot, PUB_DRY_RUN)
+            if simular is None:
+                simular = await store.modo_prueba(PUB_DRY_RUN)
+            await ejecutar_job(job, fecha, bot, simular)
         except Exception as e:             # un job roto no debe tumbar a los demás
             log(f"Publicador: error ejecutando '{job['nombre']}': {e}", "error")
