@@ -1,8 +1,8 @@
 """Módulo start — /start y /help.
 
-Esto faltaba: con 21 módulos de funcionalidad no había ni un /start ni un /help
-centralizado. Sigue la convención HELP_TOPICS/TOPIC_ALIASES que ya usas en
-taso-bot: resumen compacto con botones + página de detalle por tema.
+/help se genera desde el registro de comandos (core/registry.py): cada módulo declara
+su TOPIC y sus COMMANDS, y aquí solo se presentan. Ya no hay texto de ayuda escrito a mano.
+El prefijo de callback `help:` se conserva para que los mensajes viejos sigan funcionando.
 """
 
 import html
@@ -11,8 +11,10 @@ from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
 from telegram.constants import ParseMode
 from telegram.ext import Application, CommandHandler, CallbackQueryHandler, ContextTypes
 
+from core import registry
 from core.config import BOT_VERSION
 from core.registry import Cmd, Topic
+from core.ui import guard_callback, mostrar
 
 __mod_name__ = "Inicio"
 
@@ -24,117 +26,42 @@ COMMANDS = (
 
 CB_PREFIX = "help:"
 
-HELP_TOPICS = {
-    "admin": ("🛡️ Administración",
-              "/promote /demote — dar o quitar admin (respondiendo al mensaje)\n"
-              "/pin /unpin — fijar o desfijar\n"
-              "/purge — borra desde el mensaje respondido hasta ahora\n"
-              "/title /id /admins — info del chat/usuario"),
-    "bans": ("🔨 Bans y silencios",
-             "/ban /tban <1h|30m|1d> — banear perm./temporal\n"
-             "/unban /kick\n"
-             "/mute /tmute <duración> /unmute"),
-    "warns": ("⚠️ Avisos",
-              "/warn [motivo] (respondiendo)\n"
-              "/warns — ver avisos de alguien\n"
-              "/resetwarns\n"
-              "/setwarnlimit <n> — límite antes de sancionar"),
-    "antiflood": ("🌊 AntiFlood",
-                  "/setflood <n> — más de n mensajes en 10s dispara la acción (0 = off)\n"
-                  "/setfloodaction <mute|kick|ban>"),
-    "locks": ("🔒 Bloqueos de contenido",
-              "/lock <tipo> /unlock <tipo> /locks\n"
-              "Tipos: stickers, links, forwards, photos, videos, documents, voice, polls, games, inlinebots"),
-    "blacklist": ("🚫 Lista negra",
-                  "/addblacklist <palabra> [delete|warn|ban]\n"
-                  "/rmblacklist <palabra>\n/blacklist"),
-    "filters": ("🔁 Filtros (auto-respuestas)",
-                "/filter <palabra> <respuesta>\n/stop <palabra>\n/filters"),
-    "notes": ("📝 Notas",
-              "/save <nombre> <contenido> (o respondiendo)\n"
-              "/get <nombre> o #nombre\n/clear <nombre>\n/notes"),
-    "welcome": ("👋 Bienvenida",
-                "/setwelcome <texto> /setgoodbye <texto>\n"
-                "Placeholders: {mencion} {nombre} {chat}\n/welcome on|off"),
-    "rules": ("📜 Reglas", "/rules — verlas\n/setrules <texto> — configurarlas"),
-    "reporting": ("🚨 Reportes", "/report (respondiendo a un mensaje) — avisa a los admins"),
-    "approvals": ("✅ Aprobaciones",
-                  "/approve (respondiendo) [motivo] — inmune a antiflood/blacklist/locks\n"
-                  "/approval /approved /unapprove /unapproveall"),
-    "federation": ("🌐 Federación TASALO",
-                   "/fban (respondiendo) [motivo] — banea en TODOS los chats oficiales\n"
-                   "/funban /fbanlist"),
-    "log": ("📋 Log de administración",
-            "/setlog (en el canal) — vincula ese canal como log\n"
-            "/unsetlog /logchannel\n/log <categorías> /nolog <categorías>\n\n"
-            "Categorías: settings, admin, user, automated, reports, other.\n"
-            "• admin: tus /ban /mute /kick manuales, etc.\n"
-            "• automated: acciones que el bot aplica solo (antiflood, lista negra, "
-            "límite de avisos).\n"
-            "Si ves un mensaje con 🤖, es una frase corta generada con IA (Groq) "
-            "explicando el motivo de una acción automática — nunca decide nada, "
-            "solo la explica después de ya aplicada. Si no tienes GROQ_API_KEY "
-            "configurada, esos mensajes simplemente no aparecen (el log normal sí)."),
-    "disabling": ("🔕 Deshabilitar comandos",
-                  "/disable <cmd> /enable <cmd> /disabled /disableable\n"
-                  "/disabledel on|off /disableadmin on|off"),
-    "join": ("🚪 Solicitudes de ingreso", "/joincaptcha on|off — exige botón de confirmación"),
-    "connection": ("🔗 Conexión remota",
-                   "/connect <@usuario|id_chat> (en PM) — gestiona un chat sin escribir ahí\n"
-                   "/connection /disconnect"),
-    "broadcast": ("📣 Difusión TASALO",
-                  "/broadcast <texto> (o respondiendo) — a todos los chats oficiales\n"
-                  "/marcaroficial /desmarcaroficial /oficiales"),
-    "stats": ("📊 Estadísticas", "/stats — estado del bot, memoria, chats, feeds"),
-    "rss": ("📰 RSS",
-            "/addfeed — asistente para añadir un feed\n"
-            "/myfeeds — ver y pausar/eliminar\n"
-            "/setinterval /setstyle /setrhash /rmfeed /testfeed\n"
-            "/settranslate <id> <on|off> — traduce con IA feeds en otro idioma (requiere Groq)"),
-}
-
-TOPIC_ALIASES = {
-    "moderacion": "admin", "mod": "admin", "moderación": "admin",
-    "ban": "bans", "baneos": "bans",
-    "aviso": "warns", "avisos": "warns",
-    "flood": "antiflood",
-    "lock": "locks", "bloqueos": "locks",
-    "negra": "blacklist",
-    "filtro": "filters", "filtros": "filters",
-    "nota": "notes",
-    "bienvenida": "welcome",
-    "regla": "rules", "reglas": "rules",
-    "reporte": "reporting", "reportes": "reporting",
-    "aprobar": "approvals", "aprobaciones": "approvals",
-    "fed": "federation", "federacion": "federation", "federación": "federation",
-    "logs": "log",
-    "disable": "disabling", "deshabilitar": "disabling",
-    "captcha": "join", "solicitudes": "join",
-    "conexion": "connection", "conexión": "connection", "connect": "connection",
-    "difusion": "broadcast", "difusión": "broadcast",
-    "estadisticas": "stats", "estadísticas": "stats",
-    "feed": "rss", "feeds": "rss", "noticias": "rss",
-    "traducir": "rss", "traduccion": "rss", "traducción": "rss",
-    "ia": "log", "groq": "log",
-}
+# Orden de los temas en /help (los que no estén aquí van al final, en orden de carga).
+ORDEN_TEMAS = (
+    "inicio", "admin", "bans", "warns", "antiflood", "locks", "blacklist", "filters", "notes",
+    "welcome", "rules", "reporting", "approvals", "federation", "log", "disabling", "join",
+    "connection", "broadcast", "stats", "rss",
+)
 
 
-def _teclado_resumen() -> InlineKeyboardMarkup:
-    claves = list(HELP_TOPICS.keys())
-    filas = []
-    for i in range(0, len(claves), 2):
-        par = claves[i:i + 2]
-        filas.append([
-            InlineKeyboardButton(HELP_TOPICS[k][0], callback_data=f"{CB_PREFIX}{k}") for k in par
-        ])
-    return InlineKeyboardMarkup(filas)
+def _ordenados(topics) -> list[Topic]:
+    return sorted(topics, key=lambda t: ORDEN_TEMAS.index(t.key) if t.key in ORDEN_TEMAS else len(ORDEN_TEMAS))
+
+
+def _datos(context) -> tuple[tuple[Cmd, ...], list[Topic]]:
+    bot_data = context.application.bot_data
+    return bot_data.get("cmds", ()), _ordenados(bot_data.get("topics", ()))
+
+
+def texto_tema(topic: Topic, cmds) -> str:
+    """HTML de la página de un tema: título + una línea por comando + nota opcional."""
+    cuerpo = "\n".join(registry.linea_ayuda(c) for c in cmds if c.topic == topic.key)
+    if topic.nota:
+        cuerpo += f"\n\n{topic.nota}"
+    return f"<b>{html.escape(topic.title)}</b>\n\n{html.escape(cuerpo)}"
+
+
+def teclado_resumen(topics) -> InlineKeyboardMarkup:
+    botones = [InlineKeyboardButton(t.title, callback_data=f"{CB_PREFIX}{t.key}") for t in topics]
+    return InlineKeyboardMarkup([botones[i:i + 2] for i in range(0, len(botones), 2)])
 
 
 def _texto_resumen() -> str:
     return (
         "🤖 <b>taso-gcg</b> — Gestión de Canales y Grupos TASALO\n\n"
         "Toca un tema para ver sus comandos, o escribe <code>/help &lt;tema&gt;</code> directo.\n"
-        "Esta lista cubre el 100% de los comandos del bot — no hace falta buscar en otro lado."
+        "Esta lista cubre el 100% de los comandos del bot — no hace falta buscar en otro lado.\n"
+        "🔒 = solo admins del chat · 👑 = solo el equipo TASALO"
     )
 
 
@@ -159,13 +86,11 @@ async def start_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 async def help_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    cmds, topics = _datos(context)
     if context.args:
-        clave = context.args[0].lower()
-        clave = TOPIC_ALIASES.get(clave, clave)
-        if clave in HELP_TOPICS:
-            titulo, texto = HELP_TOPICS[clave]
-            texto_html = html.escape(texto)
-            await update.effective_message.reply_text(f"<b>{titulo}</b>\n\n{texto_html}", parse_mode=ParseMode.HTML)
+        topic = registry.resolver_tema(topics, context.args[0])
+        if topic:
+            await update.effective_message.reply_text(texto_tema(topic, cmds), parse_mode=ParseMode.HTML)
             return
         await update.effective_message.reply_text(
             f"No conozco el tema «{context.args[0]}». Usa /help sin argumentos para ver la lista."
@@ -173,27 +98,24 @@ async def help_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     await update.effective_message.reply_text(
-        _texto_resumen(), parse_mode=ParseMode.HTML, reply_markup=_teclado_resumen()
+        _texto_resumen(), parse_mode=ParseMode.HTML, reply_markup=teclado_resumen(topics)
     )
 
 
+@guard_callback()  # ya responde la query: aquí no se llama a query.answer()
 async def _on_help_button(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    query = update.callback_query
-    await query.answer()
-    clave = query.data.replace(CB_PREFIX, "")
+    clave = update.callback_query.data.removeprefix(CB_PREFIX)
+    cmds, topics = _datos(context)
 
     if clave == "volver":
-        await query.edit_message_text(
-            _texto_resumen(), parse_mode=ParseMode.HTML, reply_markup=_teclado_resumen()
-        )
+        await mostrar(update, _texto_resumen(), teclado_resumen(topics))
         return
 
-    if clave not in HELP_TOPICS:
+    topic = registry.resolver_tema(topics, clave)
+    if topic is None:
         return
-    titulo, texto = HELP_TOPICS[clave]
-    texto_html = html.escape(texto)
-    teclado = InlineKeyboardMarkup([[InlineKeyboardButton("⬅️ Volver", callback_data=f"{CB_PREFIX}volver")]])
-    await query.edit_message_text(f"<b>{titulo}</b>\n\n{texto_html}", parse_mode=ParseMode.HTML, reply_markup=teclado)
+    volver = InlineKeyboardMarkup([[InlineKeyboardButton("⬅️ Volver", callback_data=f"{CB_PREFIX}volver")]])
+    await mostrar(update, texto_tema(topic, cmds), volver)
 
 
 def register(application: Application, sudo_users):
