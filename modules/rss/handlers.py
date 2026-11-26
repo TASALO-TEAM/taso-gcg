@@ -19,7 +19,7 @@ from telegram.ext import (
 import html
 
 from core.database import db
-from utils.decorators import user_admin, group_only
+from utils.decorators import user_admin, group_only, is_user_admin
 from modules.rss.parser import RSSParser
 from modules.rss.resolver import RSSResolver
 from modules.rss.bluesky import BlueskyClient
@@ -57,6 +57,25 @@ async def _resolver_chat_destino(update: Update, context: ContextTypes.DEFAULT_T
     if not tg_chat_id:
         return None
     return await db.fetchone("SELECT * FROM chats WHERE tg_chat_id = ?", (tg_chat_id,))
+
+
+async def _feed_autorizado(query, context: ContextTypes.DEFAULT_TYPE, feed_id: int):
+    """Guardia de los botones de /myfeeds: devuelve el feed solo si quien pulsa
+    es admin del chat dueño del feed (no de donde se abrió el mensaje). Responde
+    la query una única vez; si no hay permiso, avisa y devuelve None."""
+    feed = await db.fetchone(
+        "SELECT f.*, c.tg_chat_id AS tg_chat_id FROM feeds f "
+        "JOIN chats c ON c.id = f.chat_id WHERE f.id = ?",
+        (feed_id,),
+    )
+    if not feed:
+        await query.answer("Ese feed ya no existe.", show_alert=True)
+        return None
+    if not await is_user_admin(context, feed["tg_chat_id"], query.from_user.id):
+        await query.answer("🚫 Solo los administradores pueden hacer esto.", show_alert=True)
+        return None
+    await query.answer()
+    return feed
 
 
 # --- /addfeed (conversación corta: URL -> estilo -> guardado) ---
@@ -159,6 +178,9 @@ async def myfeeds_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not chat_row:
         await update.effective_message.reply_text("Usa esto dentro del grupo/canal, o conéctate con /connect.")
         return
+    if not await is_user_admin(context, chat_row["tg_chat_id"], update.effective_user.id):
+        await update.effective_message.reply_text("🚫 Este comando es solo para administradores del chat.")
+        return
     feeds = await db.fetchall("SELECT * FROM feeds WHERE chat_id = ? ORDER BY numero_local", (chat_row["id"],))
     if not feeds:
         await update.effective_message.reply_text("No hay feeds configurados aquí. Usa /addfeed para crear uno.")
@@ -184,8 +206,9 @@ async def _on_style_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Botón '🎨 Estilo' de /myfeeds: abre el selector para cambiar el estilo
     de un feed ya creado, sin tener que eliminarlo y añadirlo de nuevo."""
     query = update.callback_query
-    await query.answer()
     feed_id = int(query.data.replace(f"{CB_PREFIX}smenu:", ""))
+    if not await _feed_autorizado(query, context, feed_id):
+        return
     botones = InlineKeyboardMarkup([
         [InlineKeyboardButton(ESTILOS_LABELS[estilo], callback_data=f"{CB_PREFIX}sset:{feed_id}:{estilo}")]
         for estilo in ESTILOS_VALIDOS
@@ -195,8 +218,12 @@ async def _on_style_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def _on_set_style(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
-    await query.answer()
     _, feed_id, estilo = query.data.replace(CB_PREFIX, "").split(":")
+    if estilo not in ESTILOS_VALIDOS:
+        await query.answer("Estilo no válido.", show_alert=True)
+        return
+    if not await _feed_autorizado(query, context, int(feed_id)):
+        return
     await db.execute("UPDATE feeds SET estilo = ? WHERE id = ?", (estilo, int(feed_id)))
     await query.edit_message_text(
         f"✅ Estilo actualizado a <b>{ESTILOS_LABELS[estilo]}</b>. Usa /myfeeds para verlo.",
@@ -206,16 +233,16 @@ async def _on_set_style(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def _on_toggle_or_delete(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
-    await query.answer()
     accion, feed_id = query.data.replace(CB_PREFIX, "").split(":")
     feed_id = int(feed_id)
+    feed = await _feed_autorizado(query, context, feed_id)
+    if not feed:
+        return
 
     if accion == "toggle":
-        fila = await db.fetchone("SELECT activo FROM feeds WHERE id = ?", (feed_id,))
-        if fila:
-            nuevo = 0 if fila["activo"] else 1
-            await db.execute("UPDATE feeds SET activo = ? WHERE id = ?", (nuevo, feed_id))
-            await query.edit_message_text("✅ Estado actualizado. Usa /myfeeds para ver la lista actualizada.")
+        nuevo = 0 if feed["activo"] else 1
+        await db.execute("UPDATE feeds SET activo = ? WHERE id = ?", (nuevo, feed_id))
+        await query.edit_message_text("✅ Estado actualizado. Usa /myfeeds para ver la lista actualizada.")
     elif accion == "del":
         await db.execute("DELETE FROM feeds WHERE id = ?", (feed_id,))
         await query.edit_message_text("🗑️ Feed eliminado.")
