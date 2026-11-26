@@ -16,6 +16,7 @@ import importlib
 import pkgutil
 
 import modules
+from core import registry
 from core.config import LOAD, NO_LOAD, SUDO_USERS
 from utils.logger import log
 
@@ -32,11 +33,20 @@ def _module_names() -> list[str]:
     return sorted(nombres)
 
 
+def _recoger(mod, cmds: list, topics: list) -> None:
+    """Suma al registro lo que el módulo declare (COMMANDS / TOPIC, ambos opcionales)."""
+    cmds.extend(getattr(mod, "COMMANDS", ()))
+    topic = getattr(mod, "TOPIC", None)
+    if topic is not None:
+        topics.append(topic)
+
+
 def load_all(application):
     disponibles = _module_names()
     a_cargar = LOAD if LOAD else disponibles
 
     cargados = []
+    cmds, topics = [], []  # registro de comandos (core/registry.py)
     for name in a_cargar:
         if name in NO_LOAD:
             log(f"Módulo '{name}' omitido (NO_LOAD)")
@@ -50,6 +60,7 @@ def load_all(application):
                 log(f"Módulo '{name}' no expone register(), se omite", "warning")
                 continue
             mod.register(application, SUDO_USERS)
+            _recoger(mod, cmds, topics)
             cargados.append(name)
         except Exception as e:
             log(f"Error cargando módulo '{name}': {e}", "error")
@@ -59,9 +70,14 @@ def load_all(application):
         try:
             from modules.rss import handlers as rss_handlers
             rss_handlers.register(application, SUDO_USERS)
+            _recoger(rss_handlers, cmds, topics)
             cargados.append("rss")
         except Exception as e:
             log(f"Error cargando módulo RSS: {e}", "error")
+
+    registry.validar(cmds, topics)  # un comando repetido es un bug: que falle al arrancar
+    application.bot_data["cmds"] = tuple(cmds)
+    application.bot_data["topics"] = tuple(topics)
 
     log(f"Módulos cargados ({len(cargados)}): {', '.join(cargados)}")
     return cargados
