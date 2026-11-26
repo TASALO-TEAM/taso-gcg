@@ -13,6 +13,7 @@ visto un mensaje, así que si no funciona no es un bug, es que el bot todavía n
 ## Inicio (`start.py`)
 | Comando | Descripción |
 |---|---|
+| `/menu` | Menú con botones |
 | `/start` | Iniciar / info del bot |
 | `/help [tema]` | Menú de ayuda por temas |
 

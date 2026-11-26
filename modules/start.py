@@ -78,7 +78,10 @@ async def start_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
             f"Añádeme a un grupo/canal y hazme administrador para empezar. "
             f"Usa /help para ver todos los comandos."
         )
-        await update.effective_message.reply_text(texto, parse_mode=ParseMode.HTML)
+        await update.effective_message.reply_text(
+            texto, parse_mode=ParseMode.HTML,
+            reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("📋 Menú", callback_data="menu:home")]]),
+        )
     else:
         await update.effective_message.reply_text(
             "🤖 taso-gcg activo en este chat. Usa /help para ver los comandos disponibles."
