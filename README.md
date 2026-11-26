@@ -4,9 +4,10 @@ Bot de Telegram que unifica dos cosas en un solo proceso: administración/modera
 de todos los grupos y canales de TASALO, y distribución de noticias RSS
 (migrado y modernizado desde [BitBreadRSS](https://github.com/ersus93/BitBreadRSS)).
 
-Ver `ESTADO_DESARROLLO.md` para el estado exacto del desarrollo, decisiones tomadas
-y qué falta. Ver `docs/plan-taso-gcg.md` para el plan de arquitectura completo.
-Ver `docs/COMANDOS.md` para el listado de todos los comandos.
+Ver `docs/ESTADO_DESARROLLO.md` para el estado exacto del desarrollo, decisiones tomadas
+y qué falta (la versión vigente está en `version.txt`).
+Ver `docs/COMANDOS.md` para el listado de todos los comandos (se genera desde el registro
+de comandos de cada módulo con `python -m scripts.gen_comandos`; no se edita a mano).
 
 ## Stack
 

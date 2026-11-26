@@ -7,7 +7,16 @@
 >
 > Regla de oro para continuar: **actualiza este archivo cada vez que termines un módulo.**
 
-Referencia: `docs/plan-taso-gcg.md` tiene el plan original completo (arquitectura, roadmap en 6 fases).
+> **Estado vigente (2026-11-26): manda sobre las secciones históricas de abajo.**
+> - Versión real: `version.txt` (la sube el hook post-commit). Las menciones históricas (0.1.x, 1.0.x) son del diario.
+> - Tests: `pytest -v` (174 pasan + 4 errores previos conocidos en `tests/test_log_channel.py`; antes eran "23").
+> - Comandos: cada módulo declara `COMMANDS` y `TOPIC` (`core/registry.py`) y el loader los recoge. De ese registro salen
+>   el menú "/" por scopes (`core/commands_menu.py`), `/help` (`modules/start.py`) y `docs/COMANDOS.md`
+>   (`python -m scripts.gen_comandos`). Ya no existen `HELP_TOPICS`, `TOPIC_ALIASES`, `COMANDOS_PUBLICOS` ni `COMANDOS_ADMIN`.
+> - Añadir un comando: `CommandHandler` en el módulo + su `Cmd` en `COMMANDS` (el test de paridad lo exige) +
+>   regenerar `docs/COMANDOS.md`. Un módulo nuevo añade su `Topic` y su clave a `ORDEN_TEMAS` en `modules/start.py`.
+> - Callbacks de botones: `core/ui.py` (`guard_callback` comprueba que quien pulsa es admin del chat objetivo).
+> - El plan original `docs/plan-taso-gcg.md` se eliminó del repo (commit ebbd928); este diario lo reemplaza.
 
 ---
 
