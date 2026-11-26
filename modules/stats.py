@@ -20,8 +20,14 @@ from telegram.ext import Application, CommandHandler, ContextTypes
 from core.config import BOT_VERSION
 from core.database import db
 from utils.decorators import sudo_only
+from core.registry import Cmd, Topic
 
 __mod_name__ = "Estadísticas"
+
+TOPIC = Topic("stats", "📊 Estadísticas", aliases=("estadisticas", "estadísticas"))
+COMMANDS = (
+    Cmd("stats", "Estado del bot: memoria, chats, feeds", level="sudo", topic="stats"),
+)
 
 _inicio = time.time()
 _proc = psutil.Process(os.getpid())

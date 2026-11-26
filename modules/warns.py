@@ -11,8 +11,17 @@ from modules.log_channel import enviar_log
 from modules.moderation_context import explicar_en_log
 from utils.decorators import user_admin, bot_admin, group_only
 from utils.common import extract_target_user, raw_text_after_command
+from core.registry import Cmd, Topic
 
 __mod_name__ = "Avisos"
+
+TOPIC = Topic("warns", "⚠️ Avisos", aliases=("aviso", "avisos"))
+COMMANDS = (
+    Cmd("warn", "Dar un aviso", level="admin", ambito="grupo", topic="warns", uso="[motivo]", menu=True),
+    Cmd("warns", "Ver tus avisos (o los de quien respondes)", ambito="grupo", topic="warns", menu=True),
+    Cmd("resetwarns", "Limpiar los avisos de un usuario", level="admin", ambito="grupo", topic="warns"),
+    Cmd("setwarnlimit", "Límite de avisos antes de sancionar", level="admin", ambito="grupo", topic="warns", uso="<n>"),
+)
 
 
 @group_only

@@ -14,8 +14,19 @@ from telegram.ext import (
 
 from core.database import db
 from utils.decorators import user_admin, is_user_admin
+from core.registry import Cmd, Topic
 
 __mod_name__ = "Deshabilitar comandos"
+
+TOPIC = Topic("disabling", "🔕 Deshabilitar comandos", aliases=("disable", "deshabilitar"))
+COMMANDS = (
+    Cmd("disable", "Desactivar un comando para usuarios normales", level="admin", topic="disabling", uso="<cmd>"),
+    Cmd("enable", "Reactivar un comando", level="admin", topic="disabling", uso="<cmd>"),
+    Cmd("disabled", "Ver comandos desactivados", topic="disabling"),
+    Cmd("disableable", "Ver qué comandos se pueden desactivar", topic="disabling"),
+    Cmd("disabledel", "Borrar el mensaje del comando desactivado", level="admin", topic="disabling", uso="on|off"),
+    Cmd("disableadmin", "Aplicar la desactivación también a admins", level="admin", topic="disabling", uso="on|off"),
+)
 
 # Comandos que tiene sentido poder deshabilitar (los "de lectura" que un usuario
 # normal podría spammear, no los que ya son solo-admin de por sí).

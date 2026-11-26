@@ -31,8 +31,16 @@ import html
 
 from core.database import db
 from utils.decorators import is_user_admin, refresh_admin_cache
+from core.registry import Cmd, Topic
 
 __mod_name__ = "Conexiones"
+
+TOPIC = Topic("connection", "🔗 Conexión remota", aliases=("conexion", "conexión", "connect"))
+COMMANDS = (
+    Cmd("connect", "Gestionar un chat desde el privado", ambito="privado", topic="connection", uso="<@usuario|id_chat>", menu=True),
+    Cmd("connection", "Ver y cambiar tus chats conectados", ambito="privado", topic="connection", uso="[n]"),
+    Cmd("disconnect", "Cerrar la conexión activa", ambito="privado", topic="connection"),
+)
 
 CB_PREFIX = "conn:"
 

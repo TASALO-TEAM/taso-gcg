@@ -12,8 +12,15 @@ from telegram.constants import ParseMode
 from telegram.ext import Application, CommandHandler, CallbackQueryHandler, ContextTypes
 
 from core.config import BOT_VERSION
+from core.registry import Cmd, Topic
 
 __mod_name__ = "Inicio"
+
+TOPIC = Topic("inicio", "🏠 Inicio", aliases=("start", "ayuda"))
+COMMANDS = (
+    Cmd("start", "Iniciar / info del bot", topic="inicio", menu=True),
+    Cmd("help", "Menú de ayuda por temas", topic="inicio", uso="[tema]", menu=True),
+)
 
 CB_PREFIX = "help:"
 

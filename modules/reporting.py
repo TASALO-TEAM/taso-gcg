@@ -5,8 +5,14 @@ from telegram.constants import ParseMode
 from telegram.ext import Application, CommandHandler, ContextTypes
 
 from utils.decorators import group_only
+from core.registry import Cmd, Topic
 
 __mod_name__ = "Reportes"
+
+TOPIC = Topic("reporting", "🚨 Reportes", aliases=("reporte", "reportes"))
+COMMANDS = (
+    Cmd("report", "Reportar un mensaje a los admins (respondiendo)", ambito="grupo", topic="reporting", menu=True, alias=("reportar",)),
+)
 
 
 @group_only

@@ -14,8 +14,17 @@ from telegram.ext import Application, CommandHandler, ContextTypes
 from core.database import db
 from utils.common import formatted_text_after_command
 from utils.decorators import sudo_only
+from core.registry import Cmd, Topic
 
 __mod_name__ = "Difusión"
+
+TOPIC = Topic("broadcast", "📣 Difusión TASALO", aliases=("difusion", "difusión"))
+COMMANDS = (
+    Cmd("broadcast", "Difundir a todos los chats oficiales (o respondiendo)", level="sudo", topic="broadcast", uso="<texto>"),
+    Cmd("marcaroficial", "Marcar un chat como oficial", level="sudo", topic="broadcast", uso="[id]"),
+    Cmd("desmarcaroficial", "Desmarcar un chat como oficial", level="sudo", topic="broadcast", uso="[id]"),
+    Cmd("oficiales", "Listar los chats oficiales", level="sudo", topic="broadcast"),
+)
 
 
 @sudo_only

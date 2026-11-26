@@ -7,8 +7,16 @@ from core.database import db
 from modules.log_channel import enviar_log
 from modules.moderation_context import explicar_en_log
 from utils.decorators import user_admin, bot_admin, group_only
+from core.registry import Cmd, Topic
 
 __mod_name__ = "Lista negra"
+
+TOPIC = Topic("blacklist", "🚫 Lista negra", aliases=("negra",))
+COMMANDS = (
+    Cmd("addblacklist", "Añadir palabra prohibida", level="admin", ambito="grupo", topic="blacklist", uso="<palabra> [delete|warn|ban]"),
+    Cmd("rmblacklist", "Quitar palabra de la lista negra", level="admin", ambito="grupo", topic="blacklist", uso="<palabra>"),
+    Cmd("blacklist", "Ver la lista negra del chat", ambito="grupo", topic="blacklist"),
+)
 
 ACCIONES_VALIDAS = ("delete", "warn", "ban")
 

@@ -9,8 +9,17 @@ from telegram.ext import Application, CommandHandler, MessageHandler, filters, C
 from core.database import db
 from utils.common import formatted_text_after_command, formatted_text_of_message
 from utils.decorators import user_admin, group_only
+from core.registry import Cmd, Topic
 
 __mod_name__ = "Notas"
+
+TOPIC = Topic("notes", "📝 Notas", aliases=("nota",))
+COMMANDS = (
+    Cmd("save", "Guardar una nota (o respondiendo)", level="admin", ambito="grupo", topic="notes", uso="<nombre> <contenido>"),
+    Cmd("get", "Mostrar una nota (también #nombre)", topic="notes", uso="<nombre>"),
+    Cmd("clear", "Eliminar una nota", level="admin", ambito="grupo", topic="notes", uso="<nombre>"),
+    Cmd("notes", "Ver notas guardadas", ambito="grupo", topic="notes", menu=True),
+)
 
 HASHTAG_RE = re.compile(r"#(\w+)")
 

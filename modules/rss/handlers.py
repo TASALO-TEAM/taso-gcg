@@ -26,8 +26,21 @@ from modules.rss.bluesky import BlueskyClient
 from modules.rss.monitor import RSSMonitor
 from modules.rss.nitter_watch import check_nitter_recovery
 from modules.connection import get_connected_chat_id
+from core.registry import Cmd, Topic
 
 __mod_name__ = "RSS"
+
+TOPIC = Topic("rss", "📰 RSS", aliases=("feed", "feeds", "noticias", "traducir", "traduccion", "traducción"), nota="Acepta RSS genérico, perfiles de X/Twitter y de Bluesky. El #n de cada feed es propio del chat.")
+COMMANDS = (
+    Cmd("addfeed", "Añadir un feed RSS", level="admin", topic="rss", menu=True),
+    Cmd("myfeeds", "Ver y gestionar los feeds de este chat", level="admin", topic="rss", menu=True),
+    Cmd("setinterval", "Cada cuántos minutos se revisa un feed", level="admin", topic="rss", uso="<#feed> <min>"),
+    Cmd("setstyle", "Formato de publicación", level="admin", topic="rss", uso="<#feed> <bitbread|texto|social>"),
+    Cmd("setrhash", "Plantilla de Instant View", level="admin", topic="rss", uso="<#feed> <rhash|none>"),
+    Cmd("settranslate", "Traducir con IA antes de publicar (requiere Groq)", level="admin", topic="rss", uso="<#feed> <on|off>"),
+    Cmd("rmfeed", "Eliminar un feed", level="admin", topic="rss", uso="<#feed>"),
+    Cmd("testfeed", "Enviar ahora la noticia más reciente", level="admin", topic="rss", uso="<#feed>"),
+)
 
 WAITING_URL = 1
 WAITING_STYLE = 2

@@ -6,8 +6,15 @@ from telegram.ext import Application, CommandHandler, ContextTypes
 from core.database import db
 from utils.common import formatted_text_after_command
 from utils.decorators import user_admin, group_only
+from core.registry import Cmd, Topic
 
 __mod_name__ = "Reglas"
+
+TOPIC = Topic("rules", "📜 Reglas", aliases=("regla", "reglas"))
+COMMANDS = (
+    Cmd("rules", "Ver las reglas del grupo", ambito="grupo", topic="rules", menu=True),
+    Cmd("setrules", "Configurar las reglas", level="admin", ambito="grupo", topic="rules", uso="<texto>", menu=True),
+)
 
 
 @group_only

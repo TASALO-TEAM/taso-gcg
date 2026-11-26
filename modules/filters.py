@@ -8,8 +8,16 @@ from telegram.ext import Application, CommandHandler, MessageHandler, filters as
 from core.database import db
 from utils.common import formatted_text_after_command
 from utils.decorators import user_admin, group_only
+from core.registry import Cmd, Topic
 
 __mod_name__ = "Filtros"
+
+TOPIC = Topic("filters", "🔁 Filtros (auto-respuestas)", aliases=("filtro", "filtros"))
+COMMANDS = (
+    Cmd("filter", "Respuesta automática a una palabra", level="admin", ambito="grupo", topic="filters", uso="<palabra> <respuesta>"),
+    Cmd("stop", "Eliminar un filtro", level="admin", ambito="grupo", topic="filters", uso="<palabra>"),
+    Cmd("filters", "Ver filtros activos", ambito="grupo", topic="filters"),
+)
 
 
 async def _check_filters(update: Update, context: ContextTypes.DEFAULT_TYPE):

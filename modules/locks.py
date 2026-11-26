@@ -7,8 +7,16 @@ from telegram.ext import Application, CommandHandler, MessageHandler, filters, C
 
 from core.database import db
 from utils.decorators import user_admin, bot_admin, group_only
+from core.registry import Cmd, Topic
 
 __mod_name__ = "Locks"
+
+TOPIC = Topic("locks", "🔒 Bloqueos de contenido", aliases=("lock", "bloqueos"), nota="Tipos: stickers, links, forwards, photos, videos, documents, voice, polls, games, inlinebots")
+COMMANDS = (
+    Cmd("lock", "Bloquear tipo de contenido", level="admin", ambito="grupo", topic="locks", uso="<tipo>", menu=True),
+    Cmd("unlock", "Desbloquear tipo de contenido", level="admin", ambito="grupo", topic="locks", uso="<tipo>", menu=True),
+    Cmd("locks", "Ver bloqueos activos", ambito="grupo", topic="locks"),
+)
 
 TIPOS_VALIDOS = (
     "stickers", "links", "forwards", "photos", "videos", "documents",

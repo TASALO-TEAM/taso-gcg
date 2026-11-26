@@ -10,8 +10,18 @@ from telegram.ext import Application, CommandHandler, ContextTypes
 from core.database import db
 from utils.decorators import user_admin, sudo_only, group_only
 from utils.common import extract_target_user, raw_text_after_command
+from core.registry import Cmd, Topic
 
 __mod_name__ = "Aprobaciones"
+
+TOPIC = Topic("approvals", "✅ Aprobaciones", aliases=("aprobar", "aprobaciones"), nota="Un usuario aprobado es inmune a antiflood, lista negra y locks.")
+COMMANDS = (
+    Cmd("approve", "Aprobar usuario (inmunidad)", level="admin", ambito="grupo", topic="approvals", uso="[motivo]", menu=True),
+    Cmd("approval", "Consultar si un usuario está aprobado", ambito="grupo", topic="approvals"),
+    Cmd("approved", "Listar usuarios aprobados", ambito="grupo", topic="approvals"),
+    Cmd("unapprove", "Quitar la aprobación", level="admin", ambito="grupo", topic="approvals"),
+    Cmd("unapproveall", "Quitar todas las aprobaciones del chat", level="sudo", ambito="grupo", topic="approvals"),
+)
 
 
 @group_only

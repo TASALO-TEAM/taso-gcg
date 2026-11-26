@@ -19,8 +19,21 @@ from core.database import db
 from utils.decorators import user_admin, bot_admin, group_only, refresh_admin_cache
 from utils.common import estimate_account_creation, extract_target_user, resolve_username
 from utils.logger import log
+from core.registry import Cmd, Topic
 
 __mod_name__ = "Administración"
+
+TOPIC = Topic("admin", "🛡️ Administración", aliases=("moderacion", "mod", "moderación"))
+COMMANDS = (
+    Cmd("promote", "Dar administrador (respondiendo)", level="admin", ambito="grupo", topic="admin", menu=True),
+    Cmd("demote", "Quitar administrador (respondiendo)", level="admin", ambito="grupo", topic="admin", menu=True),
+    Cmd("pin", "Fijar mensaje (respondiendo)", level="admin", ambito="grupo", topic="admin", uso="[silent]", menu=True),
+    Cmd("unpin", "Desfijar (todos si no respondes a nada)", level="admin", ambito="grupo", topic="admin", menu=True),
+    Cmd("purge", "Borra desde el mensaje respondido hasta ahora", level="admin", ambito="grupo", topic="admin", menu=True),
+    Cmd("title", "Nombre, ID y tipo del chat", ambito="grupo", topic="admin"),
+    Cmd("id", "ID del chat, o de un usuario si respondes a su mensaje", topic="admin", uso="[@usuario|id]", menu=True),
+    Cmd("admins", "Ver administradores del chat", ambito="grupo", topic="admin", menu=True),
+)
 
 
 @group_only

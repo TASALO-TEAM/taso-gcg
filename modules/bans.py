@@ -8,8 +8,20 @@ from telegram.ext import Application, CommandHandler, ContextTypes
 from modules.log_channel import enviar_log
 from utils.decorators import user_admin, bot_admin, group_only
 from utils.common import extract_target_user, parse_duration, humanize_seconds
+from core.registry import Cmd, Topic
 
 __mod_name__ = "Bans"
+
+TOPIC = Topic("bans", "🔨 Bans y silencios", aliases=("ban", "baneos"))
+COMMANDS = (
+    Cmd("ban", "Banear (respondiendo a un mensaje)", level="admin", ambito="grupo", topic="bans", uso="[motivo]", menu=True),
+    Cmd("tban", "Ban temporal", level="admin", ambito="grupo", topic="bans", uso="<1h|30m|1d> [motivo]", menu=True),
+    Cmd("unban", "Desbanear", level="admin", ambito="grupo", topic="bans", menu=True),
+    Cmd("kick", "Expulsar (puede volver a entrar)", level="admin", ambito="grupo", topic="bans", menu=True),
+    Cmd("mute", "Silenciar", level="admin", ambito="grupo", topic="bans", menu=True),
+    Cmd("tmute", "Silencio temporal", level="admin", ambito="grupo", topic="bans", uso="<1h|30m|1d>", menu=True),
+    Cmd("unmute", "Quitar silencio", level="admin", ambito="grupo", topic="bans", menu=True),
+)
 
 
 def _razon_desde_args(context, offset=0):

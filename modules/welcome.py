@@ -9,8 +9,16 @@ from telegram.ext import Application, CommandHandler, MessageHandler, filters, C
 from core.database import db
 from utils.common import formatted_text_after_command
 from utils.decorators import user_admin, group_only
+from core.registry import Cmd, Topic
 
 __mod_name__ = "Bienvenida"
+
+TOPIC = Topic("welcome", "👋 Bienvenida", aliases=("bienvenida",), nota="Placeholders: {mencion} {nombre} {chat}")
+COMMANDS = (
+    Cmd("setwelcome", "Configurar la bienvenida", level="admin", ambito="grupo", topic="welcome", uso="<texto>", menu=True),
+    Cmd("setgoodbye", "Configurar la despedida", level="admin", ambito="grupo", topic="welcome", uso="<texto>"),
+    Cmd("welcome", "Activar o desactivar la bienvenida", level="admin", ambito="grupo", topic="welcome", uso="on|off"),
+)
 
 DEFAULT_WELCOME = "👋 ¡Bienvenido/a {mencion} a {chat}!"
 DEFAULT_GOODBYE = "👋 {mencion} salió del grupo."

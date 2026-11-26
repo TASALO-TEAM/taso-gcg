@@ -21,8 +21,18 @@ from telegram.ext import Application, CommandHandler, ContextTypes
 
 from core.database import db
 from utils.decorators import ADMIN_STATUSES, user_admin, sudo_only
+from core.registry import Cmd, Topic
 
 __mod_name__ = "Log de administración"
+
+TOPIC = Topic("log", "📋 Log de administración", aliases=("logs", "ia", "groq"), nota="Categorías: settings, admin, user, automated, reports, other.\n• admin: tus /ban /mute /kick manuales, etc.\n• automated: acciones que el bot aplica solo (antiflood, lista negra, límite de avisos).\nSi ves un mensaje con 🤖, es una frase corta generada con IA (Groq) que explica el motivo de una acción automática: nunca decide nada, solo la explica después de aplicada. Sin GROQ_API_KEY esos mensajes no aparecen (el log normal sí).")
+COMMANDS = (
+    Cmd("setlog", "Vincular el canal de log (enviar en el canal)", level="sudo", topic="log"),
+    Cmd("unsetlog", "Desvincular el canal de log", level="admin", topic="log"),
+    Cmd("logchannel", "Ver el canal de log y sus categorías", topic="log"),
+    Cmd("log", "Activar categorías de log", level="admin", topic="log", uso="<categorías>"),
+    Cmd("nolog", "Desactivar categorías de log", level="admin", topic="log", uso="<categorías>"),
+)
 
 CATEGORIAS_VALIDAS = ("settings", "admin", "user", "automated", "reports", "other")
 

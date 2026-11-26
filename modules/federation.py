@@ -20,8 +20,16 @@ from telegram.ext import Application, CommandHandler, ContextTypes
 from core.database import db
 from utils.decorators import user_admin, sudo_only, group_only
 from utils.common import extract_target_user, raw_text_after_command
+from core.registry import Cmd, Topic
 
 __mod_name__ = "Federación TASALO"
+
+TOPIC = Topic("federation", "🌐 Federación TASALO", aliases=("fed", "federacion", "federación"))
+COMMANDS = (
+    Cmd("fban", "Ban federado en todos los chats oficiales TASALO", level="admin", ambito="grupo", topic="federation", uso="[motivo]", menu=True),
+    Cmd("funban", "Revertir el ban federado", level="admin", ambito="grupo", topic="federation"),
+    Cmd("fbanlist", "Lista de baneados de la federación", level="sudo", ambito="grupo", topic="federation"),
+)
 
 
 @group_only

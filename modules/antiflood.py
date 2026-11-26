@@ -15,8 +15,15 @@ from core.database import db
 from modules.log_channel import enviar_log
 from modules.moderation_context import explicar_en_log
 from utils.decorators import user_admin, group_only
+from core.registry import Cmd, Topic
 
 __mod_name__ = "AntiFlood"
+
+TOPIC = Topic("antiflood", "🌊 AntiFlood", aliases=("flood",))
+COMMANDS = (
+    Cmd("setflood", "Más de n mensajes en 10s dispara la acción (0 = off)", level="admin", ambito="grupo", topic="antiflood", uso="<n>"),
+    Cmd("setfloodaction", "Acción al detectar flood", level="admin", ambito="grupo", topic="antiflood", uso="<mute|kick|ban>"),
+)
 
 VENTANA_SEGUNDOS = 10
 # _tracker[chat_id][user_id] = [timestamps recientes]

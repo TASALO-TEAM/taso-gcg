@@ -15,8 +15,14 @@ from telegram.ext import (
 
 from core.database import db
 from utils.decorators import user_admin, group_only
+from core.registry import Cmd, Topic
 
 __mod_name__ = "Solicitudes de ingreso"
+
+TOPIC = Topic("join", "🚪 Solicitudes de ingreso", aliases=("captcha", "solicitudes"))
+COMMANDS = (
+    Cmd("joincaptcha", "Exigir botón de confirmación al ingresar", level="admin", ambito="grupo", topic="join", uso="on|off"),
+)
 
 CB_PREFIX = "joinreq:"
 
