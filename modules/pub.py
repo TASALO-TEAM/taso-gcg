@@ -93,7 +93,7 @@ def pantalla_home(jobs: list[dict], prueba: bool) -> tuple[str, InlineKeyboardMa
     for fuente, (_, etiqueta) in PLANTILLAS.items():
         if not any(j["fuente"] == fuente for j in jobs):
             filas.append([B(etiqueta, callback_data=cb(NS, "new", fuente))])
-    filas.append([B("👤 Cuentas (Hive)", callback_data=cb(NS, "cs"))])
+    filas.append([B("👤 Cuentas", callback_data=cb(NS, "cs"))])
     filas.append([B("🔄 Pasar a modo real" if prueba else "🧪 Pasar a modo prueba", callback_data=cb(NS, "pm"))])
     return "\n".join(lineas), InlineKeyboardMarkup(filas)
 
@@ -206,6 +206,9 @@ async def _cuentas_accion(accion: str, a: tuple, context) -> tuple[str, InlineKe
     if accion == "cn":
         if not _secretos.disponible():
             return await _lista_cuentas(sin_clave_maestra)
+        if a and a[0] == "n":
+            cuentas.iniciar(context.user_data, paso="nsec")
+            return cuentas.pantalla_pedir("nsec")
         cuentas.iniciar(context.user_data, paso="nombre")
         return cuentas.pantalla_pedir("nombre")
     if accion == "cx":
@@ -219,9 +222,12 @@ async def _cuentas_accion(accion: str, a: tuple, context) -> tuple[str, InlineKe
         if campo == "k":
             if not _secretos.disponible():
                 return await _cuenta(cuenta["id"], sin_clave_maestra)
+            if cuenta["red"] == "nostr":
+                cuentas.iniciar(context.user_data, paso="nsec", npub=cuenta["nombre"])
+                return cuentas.pantalla_pedir("nsec", nombre=cuenta["nombre"])
             cuentas.iniciar(context.user_data, paso="clave", nombre=cuenta["nombre"])
             return cuentas.pantalla_pedir("clave", nombre=cuenta["nombre"])
-        if campo not in cuentas.CAMPOS:
+        if campo not in cuentas.CAMPOS or (campo == "r") != (cuenta["red"] == "nostr"):
             raise ValueError("Botón antiguo")
         cuentas.iniciar(context.user_data, paso="campo", campo=cuentas.CAMPOS[campo], cuenta_id=cuenta["id"])
         return cuentas.pantalla_pedir("campo", campo=cuentas.CAMPOS[campo])
@@ -234,11 +240,13 @@ async def _cuentas_accion(accion: str, a: tuple, context) -> tuple[str, InlineKe
         await store.borrar_cuenta(cuenta["id"])
         return await _lista_cuentas(f"🗑 @{_e(cuenta['nombre'])} borrada.")
     if accion == "cl":
-        if a[1] not in cuentas.TIPOS:
+        if a[1] not in cuentas.tipos_de(cuenta["red"]):
             raise ValueError("Botón antiguo")
         return cuentas.pantalla_enlazar(cuenta, a[1], await store.listar_jobs())
     if accion == "cj":
-        tipo = cuentas.TIPOS[a[1]][0]
+        if a[1] not in cuentas.tipos_de(cuenta["red"]):
+            raise ValueError("Botón antiguo")
+        tipo = cuentas.TODOS[a[1]][0]
         job_id = int(a[2])
         if any(d["tipo"] == tipo and d["cuenta_id"] == cuenta["id"] for d in await store.listar_destinos(job_id)):
             return await _cuenta(cuenta["id"], "ℹ️ Esa cuenta ya publica así en ese trabajo.")
@@ -370,7 +378,7 @@ async def _on_texto(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if st is None:
         return
     borrado = True
-    if st["paso"] == "clave":                  # lo primero: que la clave no quede en el chat
+    if st["paso"] in ("clave", "nsec"):        # lo primero: que la clave no quede en el chat
         borrado = await _borrar(msg)
     try:
         texto, cid = await cuentas.procesar(context.user_data, msg.text)

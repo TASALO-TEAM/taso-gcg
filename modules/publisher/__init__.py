@@ -13,7 +13,7 @@ from apscheduler.triggers.interval import IntervalTrigger
 def register(application, sudo_users) -> None:
     """Arranca el tick de publicación. Sin jobs en la base no hace nada visible
     (una consulta diminuta por minuto). El panel /pub llega en P5."""
-    from modules.publisher import destinos, destinos_hive, fuentes  # noqa: F401  (registran sus fuentes y destinos)
+    from modules.publisher import destinos, destinos_hive, destinos_nostr, fuentes  # noqa: F401  (registran sus fuentes y destinos)
     from modules.publisher.base import CTX
     from modules.publisher.scheduler import tick
 

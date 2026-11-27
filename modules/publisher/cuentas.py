@@ -16,7 +16,7 @@ from telegram import InlineKeyboardButton as B
 from telegram import InlineKeyboardMarkup
 
 from core.ui import cb, fila_nav
-from modules.publisher import hive, store
+from modules.publisher import hive, nostr, store
 from modules.publisher.store import PubError
 
 NS = "pub"
@@ -25,7 +25,14 @@ CLAVE_ESTADO = "pub_espera"
 MAX_BENEF = 8                        # tope del protocolo de Hive
 MAX_TAGS = 8
 TIPOS = {"w": ("hive_wave", "Wave (Ecency)"), "s": ("hive_snap", "Snap (PeakD)"), "b": ("hive_blog", "Blog")}
-CAMPOS = {"c": "comunidad", "t": "tags", "b": "beneficiarios"}
+TIPOS_NOSTR = {"n": ("nostr", "Nostr")}
+TODOS = {**TIPOS, **TIPOS_NOSTR}
+CAMPOS = {"c": "comunidad", "t": "tags", "b": "beneficiarios", "r": "relays"}
+MAX_RELAYS = 6
+
+
+def tipos_de(red: str) -> dict:
+    return TIPOS_NOSTR if red == "nostr" else TIPOS
 _RE_CUENTA = re.compile(r"[a-z][a-z0-9.-]{1,14}[a-z0-9]")           # 3-16 caracteres
 _RE_COMUNIDAD = re.compile(r"hive-\d{4,7}")
 
@@ -98,6 +105,29 @@ def parsear_beneficiarios(texto: str) -> list[dict]:
     return salida
 
 
+def parsear_relays(texto: str) -> list[str]:
+    """Direcciones wss:// separadas por espacios o comas. '-' = usar los relays por defecto."""
+    t = (texto or "").strip()
+    if t in ("-", ""):
+        return []
+    vistos: list[str] = []
+    for tok in re.split(r"[\s,;]+", t):
+        r = tok.rstrip("/").lower()
+        if not re.fullmatch(r"wss://[a-z0-9.-]+(:\d+)?(/[^\s]*)?", r):
+            raise PubError(f"«{tok}»: usa direcciones wss://, por ejemplo wss://nos.lol")
+        if r not in vistos:
+            vistos.append(r)
+    if len(vistos) > MAX_RELAYS:
+        raise PubError(f"Demasiados relays (máximo {MAX_RELAYS}).")
+    return vistos
+
+
+def _quien(c: dict) -> str:
+    """Cómo se muestra una cuenta: @nombre en Hive, npub abreviado en Nostr."""
+    n = c["nombre"]
+    return f"{n[:10]}…{n[-6:]}" if c["red"] == "nostr" else f"@{n}"
+
+
 def _pct(peso: int) -> str:
     return f"{peso / 100:g}%"
 
@@ -112,19 +142,21 @@ def pantalla_cuentas(cuentas: list[dict], clave_maestra: bool, aviso: str = "") 
         for c in cuentas:
             icono = "🟢" if c["activa"] else "⏸"
             clave = "🔑 clave guardada" if c["tiene_secreto"] else "⚠️ sin clave"
-            lineas.append(f"{icono} {_e(c['red'])} @{_e(c['nombre'])} · {clave}")
-            filas.append([B(f"{icono} @{c['nombre']}", callback_data=cb(NS, "c", c["id"]))])
+            lineas.append(f"{icono} {_e(c['red'])} {_e(_quien(c))} · {clave}")
+            filas.append([B(f"{icono} {_quien(c)}", callback_data=cb(NS, "c", c["id"]))])
     else:
-        lineas.append("Aún no hay cuentas. Añade la de Hive con la que se publicará.")
+        lineas.append("Aún no hay cuentas. Añade la de Hive o Nostr con la que se publicará.")
     if aviso:
         lineas += ["", aviso]
-    filas.append([B("➕ Cuenta de Hive", callback_data=cb(NS, "cn"))])
+    filas.append([B("➕ Cuenta de Hive", callback_data=cb(NS, "cn")), B("➕ Cuenta de Nostr", callback_data=cb(NS, "cn", "n"))])
     filas.append(fila_nav(atras=cb(NS, "h"), inicio=None))
     return "\n".join(lineas), InlineKeyboardMarkup(filas)
 
 
 def pantalla_cuenta(cuenta: dict, usos: list[dict], clave_maestra: bool = True, aviso: str = "") -> tuple[str, InlineKeyboardMarkup]:
     cid, p = cuenta["id"], cuenta["params"]
+    if cuenta["red"] == "nostr":
+        return _pantalla_nostr(cuenta, usos, aviso)
     benef = ", ".join(f"@{_e(b['account'])} {_pct(b['weight'])}" for b in p.get("beneficiarios") or []) or "ninguno"
     lineas = [
         f"👤 <b>@{_e(cuenta['nombre'])}</b> ({_e(cuenta['red'])})",
@@ -151,7 +183,33 @@ def pantalla_cuenta(cuenta: dict, usos: list[dict], clave_maestra: bool = True, 
     return "\n".join(lineas), InlineKeyboardMarkup(filas)
 
 
+def _pantalla_nostr(cuenta: dict, usos: list[dict], aviso: str) -> tuple[str, InlineKeyboardMarkup]:
+    cid = cuenta["id"]
+    relays = ", ".join(cuenta["params"].get("relays") or []) or "los de por defecto"
+    lineas = [
+        f"👤 <b>{_e(_quien(cuenta))}</b> (nostr)",
+        f"Estado: {'🟢 activa' if cuenta['activa'] else '⏸ en pausa'}",
+        "🔑 Clave privada: " + ("✅ guardada (cifrada)" if cuenta["tiene_secreto"] else "⚠️ falta"),
+        f"📡 Relays: {_e(relays)}",
+        "",
+        "<b>Usada en</b>" + ("" if usos else " — ningún trabajo todavía"),
+    ]
+    for u in usos:
+        lineas.append(f"{'✅' if u['activo'] else '⏸'} {_e(u['job'])} → {_e(u['tipo'])}")
+    if aviso:
+        lineas += ["", aviso]
+    filas = [
+        [B("✏️ Clave", callback_data=cb(NS, "ce", cid, "k")), B("✏️ Relays", callback_data=cb(NS, "ce", cid, "r"))],
+        [B("⏸ Pausar" if cuenta["activa"] else "▶️ Activar", callback_data=cb(NS, "ca", cid)),
+         B("🗑 Borrar", callback_data=cb(NS, "cd", cid))],
+        [B("➕ Nostr", callback_data=cb(NS, "cl", cid, "n"))],
+        fila_nav(atras=cb(NS, "cs"), inicio=None),
+    ]
+    return "\n".join(lineas), InlineKeyboardMarkup(filas)
+
+
 _PEDIR = {
+    "relays": "📡 Escribe los relays donde publicar (<code>wss://nos.lol wss://relay.primal.net</code>, máximo 6). «-» para usar los de por defecto.",
     "nombre": "👤 <b>Nueva cuenta de Hive</b>\nEscribe el nombre de la cuenta (con o sin @).",
     "comunidad": "👥 Escribe el código de la comunidad (<code>hive-123456</code>) o pega su enlace.\nEscribe «-» para dejarla vacía.",
     "tags": "🏷 Escribe las tags por defecto, separadas por espacios o comas (máximo 8). «-» para ninguna.\nSe suman a las que ponga cada publicación.",
@@ -162,7 +220,12 @@ _PEDIR = {
 
 
 def pantalla_pedir(paso: str, campo: str | None = None, nombre: str | None = None) -> tuple[str, InlineKeyboardMarkup]:
-    if paso == "clave":
+    if paso == "nsec":
+        texto = ("🔑 Envía ahora la clave <b>privada</b> de Nostr (<code>nsec1…</code> o 64 caracteres hex)."
+                 + (f"\nTiene que ser la de {_e(nombre[:10])}…{_e(nombre[-6:])}." if nombre else "")
+                 + "\n\n⚠️ Usa una identidad dedicada a TASALO, no tu clave personal. Borro tu mensaje en cuanto lo recibo; "
+                 "la guardo cifrada y no la vuelvo a mostrar.")
+    elif paso == "clave":
         texto = (f"🔑 Envía ahora la clave de <b>posting</b> de @{_e(nombre)} (empieza por 5, 51 caracteres).\n\n"
                  "⚠️ Solo la de posting, nunca la activa ni la owner. Borro tu mensaje en cuanto lo recibo; "
                  "la guardo cifrada y no la vuelvo a mostrar.")
@@ -180,7 +243,7 @@ def pantalla_borrar(cuenta: dict, usos: list[dict]) -> tuple[str, InlineKeyboard
 
 
 def pantalla_enlazar(cuenta: dict, tipo: str, jobs: list[dict]) -> tuple[str, InlineKeyboardMarkup]:
-    nombre = TIPOS[tipo][1]
+    nombre = TODOS[tipo][1]
     if not jobs:
         return "Aún no hay trabajos. Crea uno en /pub.", InlineKeyboardMarkup([fila_nav(atras=cb(NS, "c", cuenta["id"]), inicio=None)])
     filas = [[B(j["nombre"], callback_data=cb(NS, "cj", cuenta["id"], tipo, j["id"]))] for j in jobs]
@@ -220,6 +283,14 @@ async def procesar(user_data: dict, texto: str) -> tuple[str, int | None]:
         nombre = parsear_nombre(texto)
         iniciar(user_data, paso="clave", nombre=nombre)
         return pantalla_pedir("clave", nombre=nombre)[0], None
+    if paso == "nsec":
+        sk = nostr.parsear_clave(texto)
+        npub = nostr.npub_de(sk)
+        if st.get("npub") and st["npub"] != npub:
+            raise PubError("Esa clave no es la de esta cuenta. Para otra identidad, añade otra cuenta.")
+        cid = await store.guardar_cuenta("nostr", npub, nostr.nsec_de(sk))
+        cancelar(user_data)
+        return "✅ Clave guardada cifrada.", cid
     if paso == "clave":
         await hive.verificar_clave(st["nombre"], texto)               # lanza si no es la de posting de la cuenta
         cid = await store.guardar_cuenta("hive", st["nombre"], texto.strip())
@@ -231,7 +302,8 @@ async def procesar(user_data: dict, texto: str) -> tuple[str, int | None]:
             cancelar(user_data)
             raise PubError("La cuenta ya no existe.")
         campo = st["campo"]
-        valor = {"comunidad": parsear_comunidad, "tags": parsear_tags, "beneficiarios": parsear_beneficiarios}[campo](texto)
+        valor = {"comunidad": parsear_comunidad, "tags": parsear_tags, "beneficiarios": parsear_beneficiarios,
+                 "relays": parsear_relays}[campo](texto)
         params = dict(cuenta["params"])
         if valor:
             params[campo] = valor
