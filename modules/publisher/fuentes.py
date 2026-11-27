@@ -11,6 +11,7 @@ reciben los usuarios de taso-bot, así que no se duplica el trabajo (ni Groq ni 
 
 from datetime import datetime, timedelta, timezone
 
+import re
 import httpx
 
 from core.config import TASALO_ADMIN_KEY, TASO_API_URL
@@ -77,6 +78,21 @@ async def fuente_year() -> Contenido:
         return armar_year(r.json())
 
 
+TITULO_TSPL = "TASALO Spotlight: Resumen del día"     # respaldo si el blog no trae su propio encabezado
+_H1 = re.compile(r"^# +(.+?)[ \t]*$", re.M)
+
+
+def _separar_titulo(md: str | None) -> tuple[str, str | None]:
+    """El `# encabezado` del blog de taso-bot es el título del post: sube al título y sale del cuerpo
+    (en Hive el título va aparte; dejarlo en el cuerpo lo repetiría debajo de la imagen)."""
+    m = _H1.search(md or "")
+    if not m:
+        return TITULO_TSPL, md
+    titulo = m.group(1).replace(" - ", " \u2014 ", 1)
+    antes, despues = md[: m.start()].rstrip("\n"), md[m.end():].lstrip("\n")
+    return titulo, f"{antes}\n\n{despues}" if antes else despues
+
+
 def armar_tspl(data: dict, ahora: datetime | None = None) -> Contenido:
     """Convierte la respuesta del digest en Contenido, tal cual la armó taso-bot.
     ValueError si falta el texto, la fecha es inválida o el digest es de otro día."""
@@ -92,9 +108,10 @@ def armar_tspl(data: dict, ahora: datetime | None = None) -> Contenido:
     ahora = ahora or datetime.now(timezone.utc)
     if ahora - generado > timedelta(hours=EDAD_MAX_TSPL_H):
         raise ValueError(f"el digest de TSPL es viejo (generado {generado:%Y-%m-%d %H:%M} UTC)")
+    titulo, blog = _separar_titulo(data.get("blog_markdown"))
     return Contenido(
-        titulo="TSPL: resumen del día",
-        cuerpo_md=(data.get("blog_markdown") or texto),
+        titulo=titulo,
+        cuerpo_md=(blog or texto),
         texto_corto=texto,
         tags=TAGS_TSPL,
         extra={"parse_mode": "Markdown"},   # el texto de /tspl es Markdown v1

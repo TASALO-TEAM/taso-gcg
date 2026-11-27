@@ -24,9 +24,29 @@ def _data(**extra):
 def test_armar_tspl_reenvia_el_texto_tal_cual():
     c = fuentes.armar_tspl(_data(), ahora=AHORA)
     assert c.texto_corto == "*TSPL*\n_hola_"            # el mismo mensaje que reciben los usuarios de taso-bot
-    assert c.cuerpo_md == "# Blog\n\ncuerpo"
+    assert c.cuerpo_md == "cuerpo" and c.titulo == "Blog"      # el "# t\u00edtulo" pasa al t\u00edtulo del post
     assert c.extra["parse_mode"] == "Markdown"
     assert c.tags == fuentes.TAGS_TSPL
+
+
+BLOG = ("![](https://img/x.png)\n\n# \U0001F4CA TASALO Spotlight - 26 nov 2026\n\nlede del d\u00eda\n\n## Noticias\n\n- una")
+
+
+def test_titulo_del_blog_sale_del_encabezado_y_no_se_repite_en_el_cuerpo():
+    c = fuentes.armar_tspl(_data(blog_markdown=BLOG), ahora=AHORA)
+    assert c.titulo == "\U0001F4CA TASALO Spotlight \u2014 26 nov 2026"
+    assert c.cuerpo_md == "![](https://img/x.png)\n\nlede del d\u00eda\n\n## Noticias\n\n- una"
+
+
+def test_encabezado_sin_imagen_delante():
+    c = fuentes.armar_tspl(_data(blog_markdown="# T - 1\n\ncuerpo"), ahora=AHORA)
+    assert c.titulo == "T \u2014 1" and c.cuerpo_md == "cuerpo"
+
+
+@pytest.mark.parametrize("md", [None, "", "sin encabezado\n\n## solo h2"])
+def test_sin_encabezado_el_titulo_es_el_de_respaldo(md):
+    c = fuentes.armar_tspl(_data(blog_markdown=md), ahora=AHORA)
+    assert c.titulo == fuentes.TITULO_TSPL == "TASALO Spotlight: Resumen del d\u00eda"
 
 
 def test_armar_tspl_sin_blog_usa_el_texto_de_telegram():
