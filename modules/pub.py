@@ -38,7 +38,13 @@ COMMANDS = (
 NS = "pub"
 PASO_MIN = 15
 ICONO_ESTADO = {"ok": "✅", "simulado": "🧪", "error": "❌", "reservado": "⏳"}
-FUENTE_NOMBRE = {"year": "Estado del año", "tspl": "Blog TSPL"}
+FUENTE_NOMBRE = {"year": "Estado del año", "tspl": "Resumen TSPL"}
+# Trabajos que el panel sabe crear con un toque: fuente -> (nombre, etiqueta del botón). Salen a las 8:30 Cuba
+# hacia @tasalospl; el estado del año va primero si coinciden (ver store.listar_jobs).
+PLANTILLAS = {
+    "year": ("Estado del año", "➕ Estado del año → @tasalospl"),
+    "tspl": ("Resumen TSPL", "➕ Resumen TSPL → @tasalospl"),
+}
 
 
 def _e(x) -> str:
@@ -80,8 +86,9 @@ def pantalla_home(jobs: list[dict], prueba: bool) -> tuple[str, InlineKeyboardMa
             filas.append([B(f"{icono} {j['nombre']}", callback_data=cb(NS, "j", j["id"]))])
     else:
         lineas += ["", "Aún no hay trabajos. Crea el primero:"]
-    if not any(j["fuente"] == "year" for j in jobs):
-        filas.append([B("➕ Estado del año → @tasalospl", callback_data=cb(NS, "new", "year"))])
+    for fuente, (_, etiqueta) in PLANTILLAS.items():
+        if not any(j["fuente"] == fuente for j in jobs):
+            filas.append([B(etiqueta, callback_data=cb(NS, "new", fuente))])
     filas.append([B("🔄 Pasar a modo real" if prueba else "🧪 Pasar a modo prueba", callback_data=cb(NS, "pm"))])
     return "\n".join(lineas), InlineKeyboardMarkup(filas)
 
@@ -200,8 +207,8 @@ async def _despachar(accion: str, a: tuple, context) -> tuple[str, InlineKeyboar
     if accion == "pm":
         await store.set_modo_prueba(not await store.modo_prueba(PUB_DRY_RUN))
         return await _home()
-    if accion == "new" and a and a[0] == "year":
-        job_id = await store.crear_job("Estado del año", "year", 8, 30)
+    if accion == "new" and a and a[0] in PLANTILLAS:
+        job_id = await store.crear_job(PLANTILLAS[a[0]][0], a[0], 8, 30)
         await store.agregar_destino(job_id, "telegram", params={"chat": "@tasalospl"})
         return await _job(job_id, "Creado. Revisa la hora y pulsa 🧪 Probar antes de pasar a modo real.")
     if accion in ("t", "n", "nc"):

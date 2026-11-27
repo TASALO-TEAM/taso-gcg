@@ -65,6 +65,9 @@ NOSTR_RELAYS: list[str] = [
 PUB_DRY_RUN: bool = os.getenv("PUB_DRY_RUN", "1") != "0"
 # taso-api (fuente "estado del año"). En el VPS corre en el mismo equipo.
 TASO_API_URL = os.getenv("TASO_API_URL", "http://localhost:8040")
+# Clave de admin de taso-api (la misma TASALO_ADMIN_KEY de taso-bot): la fuente `tspl` la usa para
+# leer el digest que taso-bot empuja. Solo en .env, nunca en la base de datos.
+TASALO_ADMIN_KEY = os.getenv("TASALO_ADMIN_KEY", "")
 
 # --- Rutas ---
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))

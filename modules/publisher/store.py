@@ -58,7 +58,7 @@ async def get_job(job_id: int) -> dict | None:
 
 
 async def listar_jobs(solo_activos: bool = False) -> list[dict]:
-    q = "SELECT * FROM pub_jobs" + (" WHERE activo = 1" if solo_activos else "") + " ORDER BY id"
+    q = "SELECT * FROM pub_jobs" + (" WHERE activo = 1" if solo_activos else "") + " ORDER BY (fuente <> 'year'), id"   # el estado del año sale primero si coinciden
     return await db.fetchall(q)
 
 

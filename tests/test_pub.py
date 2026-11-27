@@ -188,3 +188,25 @@ async def test_tick_lee_el_modo_prueba_de_la_base(ctx, monkeypatch):
     await store.set_modo_prueba(False)
     await sch.tick(ctx.bot, ahora)
     assert len(ctx.bot.enviados) == 1                               # el panel lo pasó a real
+
+
+# ---------- plantilla TSPL en el panel ----------
+def test_home_ofrece_year_y_tspl_hasta_que_se_crean():
+    _, tec = pub.pantalla_home([], prueba=True)
+    assert {"pub:new:year", "pub:new:tspl"} <= set(_datas(tec))
+    tspl = {**JOB, "id": 4, "nombre": "Resumen TSPL", "fuente": "tspl"}
+    _, tec = pub.pantalla_home([JOB, tspl], prueba=False)
+    assert not {"pub:new:year", "pub:new:tspl"} & set(_datas(tec))
+
+
+async def test_crear_tspl_a_las_8_30_hacia_el_canal(ctx):
+    await pub._despachar("new", ("tspl",), ctx)
+    job = (await store.listar_jobs())[0]
+    assert (job["fuente"], job["hora"], job["minuto"]) == ("tspl", 8, 30)
+    (dest,) = await store.listar_destinos(job["id"])
+    assert dest["tipo"] == "telegram" and dest["params"] == {"chat": "@tasalospl"}
+
+
+async def test_fuente_desconocida_en_new_se_ignora(ctx):
+    await pub._despachar("new", ("noexiste",), ctx)
+    assert await store.listar_jobs() == []
