@@ -176,6 +176,15 @@ async def borrar_cuenta(cuenta_id: int) -> None:
     await db.execute("DELETE FROM pub_cuentas WHERE id = ?", (cuenta_id,))
 
 
+async def destinos_de_cuenta(cuenta_id: int) -> list[dict]:
+    """Destinos que usan esta cuenta, con el nombre de su trabajo (para mostrar y avisar al borrar)."""
+    return await db.fetchall(
+        "SELECT d.id, d.tipo, d.activo, d.job_id, j.nombre AS job FROM pub_destinos d "
+        "JOIN pub_jobs j ON j.id = d.job_id WHERE d.cuenta_id = ? ORDER BY d.id",
+        (cuenta_id,),
+    )
+
+
 # ---------- registro idempotente ----------
 async def reservar(job_id: int, destino_id: int, fecha: str, max_intentos: int = 3) -> bool:
     """Reserva (job, destino, día). True = esta llamada debe publicar.

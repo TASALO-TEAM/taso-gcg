@@ -12,12 +12,15 @@ from datetime import datetime
 from telegram import InlineKeyboardButton as B
 from telegram import InlineKeyboardMarkup, Update
 from telegram.constants import ParseMode
-from telegram.ext import Application, CallbackQueryHandler, CommandHandler, ContextTypes
+from telegram.ext import Application, CallbackQueryHandler, CommandHandler, ContextTypes, MessageHandler, filters
 
-from core.config import PUB_DRY_RUN
+from core import secrets as _secretos
+from core.config import PUB_DRY_RUN, SUDO_USERS
 from core.registry import Cmd, Topic
 from core.ui import cb, fila_nav, guard_callback, mostrar, parse
+from modules.publisher import cuentas, hive
 from modules.publisher import destinos as _destinos  # noqa: F401  (registra los destinos)
+from modules.publisher import destinos_hive as _destinos_hive  # noqa: F401  (registra los destinos de Hive)
 from modules.publisher import fuentes as _fuentes  # noqa: F401  (registra las fuentes)
 from modules.publisher import store
 from modules.publisher.scheduler import TZ, ejecutar_job
@@ -36,6 +39,7 @@ COMMANDS = (
 )
 
 NS = "pub"
+ACCIONES_CUENTA = {"cs", "c", "cn", "cx", "ce", "ca", "cd", "cdc", "cl", "cj"}
 PASO_MIN = 15
 ICONO_ESTADO = {"ok": "✅", "simulado": "🧪", "error": "❌", "reservado": "⏳"}
 FUENTE_NOMBRE = {"year": "Estado del año", "tspl": "Resumen TSPL"}
@@ -69,7 +73,7 @@ def _dias(job: dict) -> str:
 
 
 def _destino_txt(d: dict) -> str:
-    extra = d["params"].get("chat", "")
+    extra = d["params"].get("chat") or (f"@{d['cuenta_nombre']}" if d.get("cuenta_nombre") else "")
     return f"{d['tipo']} {extra}".strip()
 
 
@@ -89,6 +93,7 @@ def pantalla_home(jobs: list[dict], prueba: bool) -> tuple[str, InlineKeyboardMa
     for fuente, (_, etiqueta) in PLANTILLAS.items():
         if not any(j["fuente"] == fuente for j in jobs):
             filas.append([B(etiqueta, callback_data=cb(NS, "new", fuente))])
+    filas.append([B("👤 Cuentas (Hive)", callback_data=cb(NS, "cs"))])
     filas.append([B("🔄 Pasar a modo real" if prueba else "🧪 Pasar a modo prueba", callback_data=cb(NS, "pm"))])
     return "\n".join(lineas), InlineKeyboardMarkup(filas)
 
@@ -170,8 +175,76 @@ async def _job(job_id: int, aviso: str = ""):
     job = await store.get_job(job_id)
     if job is None:
         return await _home()
-    return pantalla_job(job, await store.listar_destinos(job_id), await store.historial(job_id, 3),
+    destinos = await store.listar_destinos(job_id)
+    for d in destinos:                      # los destinos de Hive se muestran con su cuenta
+        if d["cuenta_id"]:
+            c = await store.get_cuenta(d["cuenta_id"])
+            d["cuenta_nombre"] = c["nombre"] if c else None
+    return pantalla_job(job, destinos, await store.historial(job_id, 3),
                         await store.modo_prueba(PUB_DRY_RUN), aviso)
+
+
+async def _lista_cuentas(aviso: str = ""):
+    return cuentas.pantalla_cuentas(await store.listar_cuentas(), _secretos.disponible(), aviso)
+
+
+async def _cuenta(cuenta_id: int, aviso: str = ""):
+    c = await store.get_cuenta(cuenta_id)
+    if c is None:
+        return await _lista_cuentas()
+    return cuentas.pantalla_cuenta(c, await store.destinos_de_cuenta(cuenta_id), _secretos.disponible(), aviso)
+
+
+async def _cuentas_accion(accion: str, a: tuple, context) -> tuple[str, InlineKeyboardMarkup]:
+    """Acciones de cuentas (`pub:c*`). Las que piden texto dejan el estado en context.user_data."""
+    sin_clave_maestra = "⚠️ Falta PUBLISHER_MASTER_KEY en el .env del servidor: no puedo guardar claves."
+    if accion == "cs":
+        cuentas.cancelar(context.user_data)
+        return await _lista_cuentas()
+    if accion == "c":
+        return await _cuenta(int(a[0]))
+    if accion == "cn":
+        if not _secretos.disponible():
+            return await _lista_cuentas(sin_clave_maestra)
+        cuentas.iniciar(context.user_data, paso="nombre")
+        return cuentas.pantalla_pedir("nombre")
+    if accion == "cx":
+        cuentas.cancelar(context.user_data)
+        return await _lista_cuentas()
+    cuenta = await store.get_cuenta(int(a[0]))
+    if cuenta is None:
+        return await _lista_cuentas()
+    if accion == "ce":
+        campo = a[1]
+        if campo == "k":
+            if not _secretos.disponible():
+                return await _cuenta(cuenta["id"], sin_clave_maestra)
+            cuentas.iniciar(context.user_data, paso="clave", nombre=cuenta["nombre"])
+            return cuentas.pantalla_pedir("clave", nombre=cuenta["nombre"])
+        if campo not in cuentas.CAMPOS:
+            raise ValueError("Botón antiguo")
+        cuentas.iniciar(context.user_data, paso="campo", campo=cuentas.CAMPOS[campo], cuenta_id=cuenta["id"])
+        return cuentas.pantalla_pedir("campo", campo=cuentas.CAMPOS[campo])
+    if accion == "ca":
+        await store.editar_cuenta(cuenta["id"], activa=not cuenta["activa"])
+        return await _cuenta(cuenta["id"])
+    if accion == "cd":
+        return cuentas.pantalla_borrar(cuenta, await store.destinos_de_cuenta(cuenta["id"]))
+    if accion == "cdc":
+        await store.borrar_cuenta(cuenta["id"])
+        return await _lista_cuentas(f"🗑 @{_e(cuenta['nombre'])} borrada.")
+    if accion == "cl":
+        if a[1] not in cuentas.TIPOS:
+            raise ValueError("Botón antiguo")
+        return cuentas.pantalla_enlazar(cuenta, a[1], await store.listar_jobs())
+    if accion == "cj":
+        tipo = cuentas.TIPOS[a[1]][0]
+        job_id = int(a[2])
+        if any(d["tipo"] == tipo and d["cuenta_id"] == cuenta["id"] for d in await store.listar_destinos(job_id)):
+            return await _cuenta(cuenta["id"], "ℹ️ Esa cuenta ya publica así en ese trabajo.")
+        await store.agregar_destino(job_id, tipo, cuenta_id=cuenta["id"])
+        return await _cuenta(cuenta["id"], f"✅ Añadido: {_e(tipo)}. Revísalo en el trabajo y pulsa 🧪 Probar.")
+    raise ValueError("Botón antiguo")
 
 
 async def _previa(job: dict) -> str:
@@ -185,6 +258,8 @@ async def _previa(job: dict) -> str:
 
 
 async def _despachar(accion: str, a: tuple, context) -> tuple[str, InlineKeyboardMarkup]:
+    if accion in ACCIONES_CUENTA:
+        return await _cuentas_accion(accion, a, context)
     if accion == "j":
         return await _job(int(a[0]))
     if accion == "ja":
@@ -276,7 +351,46 @@ async def _on_pub(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await mostrar(update, texto, teclado)
 
 
+async def _borrar(msg) -> bool:
+    """Borra el mensaje del dueño (el que lleva la clave). False si Telegram no lo permite."""
+    try:
+        await msg.delete()
+        return True
+    except Exception:
+        return False
+
+
+async def _on_texto(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Respuesta de texto a una pregunta del panel de cuentas. Sin pregunta abierta no hace nada."""
+    msg = update.effective_message
+    user = update.effective_user
+    if not (msg and msg.text and user and user.id in SUDO_USERS and _privado(update)):
+        return
+    st = cuentas.vigente(context.user_data)
+    if st is None:
+        return
+    borrado = True
+    if st["paso"] == "clave":                  # lo primero: que la clave no quede en el chat
+        borrado = await _borrar(msg)
+    try:
+        texto, cid = await cuentas.procesar(context.user_data, msg.text)
+    except (ValueError, hive.HiveError, _secretos.SecretoError) as e:   # mensajes que nunca llevan la clave
+        _, teclado = cuentas.pantalla_pedir("nombre")                    # solo se usa su botón de cancelar
+        await msg.chat.send_message(f"⚠️ {_e(e)}\nInténtalo de nuevo o cancela.", parse_mode=ParseMode.HTML, reply_markup=teclado)
+        return
+    if not borrado:
+        texto += "\n⚠️ No pude borrar tu mensaje con la clave: bórralo tú ahora."
+    if cid is None:                            # el flujo sigue: `texto` es la siguiente pregunta
+        _, teclado = cuentas.pantalla_pedir("nombre")
+        await msg.chat.send_message(texto, parse_mode=ParseMode.HTML, reply_markup=teclado)
+        return
+    pantalla, teclado = await _cuenta(cid, texto)
+    await msg.chat.send_message(pantalla, parse_mode=ParseMode.HTML, reply_markup=teclado)
+
+
 def register(application: Application, sudo_users):
     application.add_handler(CommandHandler("pub", pub_cmd))
     application.add_handler(CommandHandler("pubdest", pubdest_cmd))
     application.add_handler(CallbackQueryHandler(_on_pub, pattern=f"^{NS}:"))
+    # group=7: aparte del resto; sin pregunta abierta devuelve enseguida y no bloquea a nadie.
+    application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND & filters.ChatType.PRIVATE, _on_texto), group=7)
